@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+dist/*.zip
+
+# Local tooling caches
+.dotnet/
+.nuget/
+
+# Runtime data
+settings.json
+*.log
+
+# IDE
+.vs/
+.idea/
+*.user
