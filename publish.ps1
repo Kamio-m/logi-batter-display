@@ -43,8 +43,11 @@ if (-not $ghExe) {
 
 Write-Host "GitHub CLI: $ghExe"
 
+$previousEap = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 & $ghExe auth status *> $null
 $loggedIn = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = $previousEap
 
 if ($CheckOnly) {
     Write-Host ("登录状态: " + $(if ($loggedIn) { "已登录" } else { "未登录（运行 .\publish.ps1 会引导登录）" }))
