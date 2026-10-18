@@ -50,6 +50,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly List<(ToolStripMenuItem Item, int Mode)> _themeItems = new();
     private readonly List<(ToolStripMenuItem Item, int Percent)> _opacityItems = new();
     private readonly List<(ToolStripMenuItem Item, int Radius)> _cornerItems = new();
+    private readonly List<(ToolStripMenuItem Item, int Seconds)> _offlineItems = new();
     private readonly HashSet<ToolStripDropDown> _styledDropdowns = new();
     private readonly MouseActivityWatcher _mouseWatcher;
 
@@ -89,6 +90,7 @@ internal sealed class TrayApp : ApplicationContext
         _menu.Items.Add(_autostartItem);
         _menu.Items.Add(BuildIntervalMenu());
         _menu.Items.Add(BuildPersonalizeMenu());
+        _menu.Items.Add(BuildOfflineMenu());
         _menu.Items.Add(new ToolStripSeparator());
         ApplyMenuStyle();
         _menu.Items.Add(new ToolStripSeparator());
@@ -150,6 +152,24 @@ internal sealed class TrayApp : ApplicationContext
         RefreshAsync();
     }
 
+    private ToolStripMenuItem BuildOfflineMenu()
+    {
+        var root = new ToolStripMenuItem("关机判定");
+        foreach (var option in new (int Seconds, string Text)[] { (60, "1 分钟"), (120, "2 分钟"), (300, "5 分钟"), (600, "10 分钟") })
+        {
+            int seconds = option.Seconds;
+            var item = new ToolStripMenuItem(option.Text, null, (_, _) =>
+            {
+                _settings.OfflineAsOffSeconds = seconds;
+                _service.PoweredOffAfterSeconds = seconds;
+                _settings.Save();
+                UpdateMenuState();
+            });
+            _offlineItems.Add((item, seconds));
+            root.DropDownItems.Add(item);
+        }
+        return root;
+    }
     private ToolStripMenuItem BuildPersonalizeMenu()
     {
         var root = new ToolStripMenuItem("个性化");
@@ -465,6 +485,9 @@ internal sealed class TrayApp : ApplicationContext
 
         foreach (var (item, radius) in _cornerItems)
             item.Checked = radius == _settings.MenuCorner;
+
+        foreach (var (item, seconds) in _offlineItems)
+            item.Checked = seconds == _settings.OfflineAsOffSeconds;
 
     }
 

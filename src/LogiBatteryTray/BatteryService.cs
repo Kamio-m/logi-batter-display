@@ -39,7 +39,7 @@ public sealed class BatteryService
     private DateTime _lastRediscover = DateTime.MinValue;
 
     /// <summary>连续无响应超过这个时长，判定为设备已关闭（协议层无法区分关机与休眠）。</summary>
-    private static readonly TimeSpan PoweredOffAfter = TimeSpan.FromSeconds(120);
+    public int PoweredOffAfterSeconds { get; set; } = 120;
     public string Problem { get; private set; }
 
     public bool Refresh()
@@ -176,7 +176,7 @@ public sealed class BatteryService
                 device.PoweredOff = connection == false
                                     || protocol.LastError.Contains("0x0B")
                                     || protocol.LastError.Contains("0x0A")
-                                    || DateTime.Now - device.OfflineSince.Value >= PoweredOffAfter;
+                                    || DateTime.Now - device.OfflineSince.Value >= TimeSpan.FromSeconds(PoweredOffAfterSeconds);
                 return ReadResult.NoResponse;
             }
 
