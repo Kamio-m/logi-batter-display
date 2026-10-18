@@ -13,6 +13,8 @@ settings.json
 
 .ssh/
 push.cmd
+publish.ps1
+publish.cmd
 
 # IDE
 .vs/
