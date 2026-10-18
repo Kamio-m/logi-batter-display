@@ -11,6 +11,9 @@ dist/*.zip
 settings.json
 *.log
 
+.ssh/
+push.cmd
+
 # IDE
 .vs/
 .idea/
