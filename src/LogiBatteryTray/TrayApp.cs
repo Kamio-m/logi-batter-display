@@ -386,7 +386,7 @@ internal sealed class TrayApp : ApplicationContext
         else if (device != null)
         {
             _header.Text = battery?.Percent != null
-                ? $"{device.Name}   {percentText}   休眠"
+                ? $"{device.Name}   {percentText}   {(device.PoweredOff ? "停用" : "休眠")}"
                 : $"{device.Name}   等待响应";
         }
         else
@@ -439,7 +439,7 @@ internal sealed class TrayApp : ApplicationContext
         if (online)
             tip = $"{_settings.LastDeviceName} {percentText} · {battery.StatusText}";
         else if (battery?.Percent is int last)
-            tip = $"{_settings.LastDeviceName} 休眠 · 上次 {last}%";
+            tip = $"{_settings.LastDeviceName} {(_service.Primary?.PoweredOff == true ? "停用" : "休眠")} · 上次 {last}%";
         else
             tip = _service.Problem ?? "等待鼠标唤醒";
 

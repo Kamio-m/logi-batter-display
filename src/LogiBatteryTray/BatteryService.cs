@@ -7,6 +7,9 @@ public sealed class LogiDevice
     public string Path { get; set; } = "";
     public byte DeviceIndex { get; set; }
     public bool Online { get; set; }
+
+    /// <summary>设备已关闭（接收器报告连接断开），区别于休眠。</summary>
+    public bool PoweredOff { get; set; }
     public BatteryReading Battery { get; set; }
     public string Problem { get; set; }
     public DateTime? UpdatedAt { get; set; }
@@ -161,9 +164,15 @@ public sealed class BatteryService
             {
                 device.Online = false;
                 device.Problem = protocol.LastError;
+
+                bool? connection = protocol.LastConnectionState(device.DeviceIndex);
+                device.PoweredOff = connection == false
+                                    || protocol.LastError.Contains("0x0B")
+                                    || protocol.LastError.Contains("0x0A");
                 return ReadResult.NoResponse;
             }
 
+            device.PoweredOff = false;
             device.Battery = battery;
             device.Online = true;
             device.Problem = null;

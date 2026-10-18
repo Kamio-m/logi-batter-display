@@ -132,6 +132,7 @@ internal static class Cli
             case "--iconvariants": return IconVariants(args.Length > 1 ? args[1] : "icon-variants.png");
             case "--dump": return DumpFeature(args[1]);
             case "--menu-preview": return MenuPreview(args.Length > 1 ? args[1] : "menu.png");
+            case "--ping": return PingIndex(args.Length > 1 ? args[1] : "1");
             case "--popup-preview": return PopupPreview(args.Length > 1 ? args[1] : "popup.png");
             case "--verify-tray": return VerifyTray();
             default:
@@ -261,6 +262,26 @@ internal static class Cli
 
         sheet.Save(path, System.Drawing.Imaging.ImageFormat.Png);
         Console.WriteLine("已生成 " + path);
+        return 0;
+    }
+    /// <summary>向指定设备索引发一次请求，打印应答/错误码（排查用）。</summary>
+    private static int PingIndex(string indexText)
+    {
+        byte index = byte.Parse(indexText);
+        var hid = HidDevice.Enumerate().FirstOrDefault(d =>
+            d.VendorId == 0x046D && d.OutputReportLength >= 20 && d.CanWrite &&
+            (d.UsagePage == 0xFF00 || d.UsagePage == 0xFF43));
+        if (hid == null) { Console.WriteLine("没有找到接口"); return 1; }
+
+        var device = new HidppDevice(hid, index);
+        bool ok = device.TryGetProtocolVersion(out double version);
+        Console.WriteLine($"索引 {index}: 协议={(ok ? version.ToString("F1") : "无")}  错误=\"{device.LastError}\"");
+        if (ok)
+        {
+            var payload = device.Call(0x06, 0, 1500);   // 电池特性 0x1004 的 index 在不同设备不同，这里只测通路
+            Console.WriteLine($"  电池特性 index={payload?.Length}  错误=\"{device.LastError}\"");
+        }
+        hid.Dispose();
         return 0;
     }
     /// <summary>把右键菜单渲染成图片，检查圆角/勾选/配色。</summary>
