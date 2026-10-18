@@ -133,6 +133,7 @@ internal static class Cli
             case "--dump": return DumpFeature(args[1]);
             case "--menu-preview": return MenuPreview(args.Length > 1 ? args[1] : "menu.png");
             case "--ping": return PingIndex(args.Length > 1 ? args[1] : "1");
+            case "--receiver": return ReceiverProbe();
             case "--popup-preview": return PopupPreview(args.Length > 1 ? args[1] : "popup.png");
             case "--verify-tray": return VerifyTray();
             default:
@@ -262,6 +263,44 @@ internal static class Cli
 
         sheet.Save(path, System.Drawing.Imaging.ImageFormat.Png);
         Console.WriteLine("已生成 " + path);
+        return 0;
+    }
+    /// <summary>遍历所有罗技接口，用接收器索引 0xFF 探测，找出接收器级状态。</summary>
+    private static int ReceiverProbe()
+    {
+        foreach (var hid in HidDevice.Enumerate().Where(d => d.VendorId == 0x046D))
+        {
+            Console.WriteLine($"接口 {hid.Path}");
+            Console.WriteLine($"  usage=0x{hid.UsagePage:X4} out={hid.OutputReportLength} canWrite={hid.CanWrite}");
+
+            if (!hid.CanWrite || hid.OutputReportLength < 7)
+            {
+                hid.Dispose();
+                continue;
+            }
+
+            foreach (byte index in new byte[] { 0xFF, 0x00 })
+            {
+                var device = new HidppDevice(hid, index);
+                bool ok = device.TryGetProtocolVersion(out double version);
+                Console.WriteLine($"  索引 0x{index:X2}: 协议={(ok ? version.ToString("F1") : "无")} 错误=\"{device.LastError}\"");
+                if (!ok) continue;
+
+                foreach (ushort feature in new ushort[] { 0x0006, 0x1D4B, 0x0003 })
+                {
+                    byte featureIndex = device.GetFeatureIndex(feature);
+                    if (featureIndex == 0) { Console.WriteLine($"    0x{feature:X4}: 不支持"); continue; }
+
+                    for (byte function = 0; function <= 2; function++)
+                    {
+                        var payload = device.Call(featureIndex, function, 1200);
+                        Console.WriteLine($"    0x{feature:X4} f{function}: " +
+                                          (payload == null ? $"无应答 ({device.LastError})" : BitConverter.ToString(payload)));
+                    }
+                }
+            }
+            hid.Dispose();
+        }
         return 0;
     }
     /// <summary>向指定设备索引发一次请求，打印应答/错误码（排查用）。</summary>

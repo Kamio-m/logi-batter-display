@@ -19,6 +19,9 @@ internal sealed class AppSettings
     public int WidgetX { get; set; } = int.MinValue;
     public int WidgetY { get; set; } = int.MinValue;
 
+    /// <summary>无响应多少秒后判定为“停用”。</summary>
+    public int OfflineAsOffSeconds { get; set; } = 120;
+
     /// <summary>菜单不透明度（40-100）。</summary>
     public int MenuOpacity { get; set; } = 100;
 
