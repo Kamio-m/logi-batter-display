@@ -8,8 +8,11 @@ public sealed class LogiDevice
     public byte DeviceIndex { get; set; }
     public bool Online { get; set; }
 
-    /// <summary>设备已关闭（接收器报告连接断开），区别于休眠。</summary>
+    /// <summary>设备已关闭，区别于休眠。</summary>
     public bool PoweredOff { get; set; }
+
+    /// <summary>开始无响应的时刻。</summary>
+    public DateTime? OfflineSince { get; set; }
     public BatteryReading Battery { get; set; }
     public string Problem { get; set; }
     public DateTime? UpdatedAt { get; set; }
@@ -34,6 +37,9 @@ public sealed class BatteryService
     private DateTime? _sampleTime;
     private int? _samplePercent;
     private DateTime _lastRediscover = DateTime.MinValue;
+
+    /// <summary>连续无响应超过这个时长，判定为设备已关闭（协议层无法区分关机与休眠）。</summary>
+    private static readonly TimeSpan PoweredOffAfter = TimeSpan.FromSeconds(120);
     public string Problem { get; private set; }
 
     public bool Refresh()
@@ -165,14 +171,17 @@ public sealed class BatteryService
                 device.Online = false;
                 device.Problem = protocol.LastError;
 
+                device.OfflineSince ??= DateTime.Now;
                 bool? connection = protocol.LastConnectionState(device.DeviceIndex);
                 device.PoweredOff = connection == false
                                     || protocol.LastError.Contains("0x0B")
-                                    || protocol.LastError.Contains("0x0A");
+                                    || protocol.LastError.Contains("0x0A")
+                                    || DateTime.Now - device.OfflineSince.Value >= PoweredOffAfter;
                 return ReadResult.NoResponse;
             }
 
             device.PoweredOff = false;
+            device.OfflineSince = null;
             device.Battery = battery;
             device.Online = true;
             device.Problem = null;
