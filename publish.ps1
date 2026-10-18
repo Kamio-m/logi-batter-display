@@ -1,11 +1,14 @@
-﻿# 一键发布到 GitHub（需要先安装并登录 GitHub CLI）
-# 用法： .\publish.ps1            -> 创建 public 仓库并推送
-#        .\publish.ps1 -Visibility private
+﻿# 一键发布到 GitHub
+# 用法：
+#   .\publish.ps1                -> 创建 public 仓库并推送
+#   .\publish.ps1 -Visibility private
+#   .\publish.ps1 -CheckOnly     -> 只检查 gh 与登录状态
 
 param(
     [string]$RepoName = "logi-battery-tray",
     [ValidateSet("public", "private")]
-    [string]$Visibility = "public"
+    [string]$Visibility = "public",
+    [switch]$CheckOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,8 +18,20 @@ if (-not (Test-Path ".git")) {
     throw "当前目录不是 git 仓库，请先运行 git init"
 }
 
-$gh = Get-Command gh -ErrorAction SilentlyContinue
-if (-not $gh) {
+# 优先用 PATH 里的 gh，找不到就去默认安装目录找
+$ghCommand = Get-Command gh -ErrorAction SilentlyContinue
+$ghExe = if ($ghCommand) { $ghCommand.Source } else { $null }
+if (-not $ghExe) {
+    $candidates = @(
+        "$env:ProgramFiles\GitHub CLI\gh.exe",
+        "${env:ProgramFiles(x86)}\GitHub CLI\gh.exe",
+        "$env:LOCALAPPDATA\GitHubCLI\gh.exe",
+        "$env:LOCALAPPDATA\Programs\GitHub CLI\gh.exe"
+    )
+    $ghExe = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+
+if (-not $ghExe) {
     Write-Host "未检测到 GitHub CLI (gh)。" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "请先安装（任选其一）："
@@ -26,21 +41,31 @@ if (-not $gh) {
     exit 1
 }
 
-gh auth status *> $null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "尚未登录 GitHub，即将打开浏览器登录…" -ForegroundColor Yellow
-    gh auth login
+Write-Host "GitHub CLI: $ghExe"
+
+& $ghExe auth status *> $null
+$loggedIn = ($LASTEXITCODE -eq 0)
+
+if ($CheckOnly) {
+    Write-Host ("登录状态: " + $(if ($loggedIn) { "已登录" } else { "未登录（运行 .\publish.ps1 会引导登录）" }))
+    exit 0
+}
+
+if (-not $loggedIn) {
+    Write-Host "尚未登录 GitHub，即将打开浏览器授权…" -ForegroundColor Yellow
+    & $ghExe auth login --hostname github.com --git-protocol https --web
     if ($LASTEXITCODE -ne 0) { throw "登录失败" }
 }
 
-if (git remote get-url origin *> $null) {
-    Write-Host "已存在 origin，直接推送…"
+$existing = git remote get-url origin 2>$null
+if ($LASTEXITCODE -eq 0 -and $existing) {
+    Write-Host "已存在 origin（$existing），直接推送…"
     git push -u origin HEAD
 }
 else {
-    gh repo create $RepoName --$Visibility --source . --remote origin --push
+    & $ghExe repo create $RepoName --$Visibility --source . --remote origin --push
 }
 
 Write-Host ""
 Write-Host "完成。仓库地址：" -ForegroundColor Green
-gh repo view --json url -q .url
+& $ghExe repo view --json url -q .url
