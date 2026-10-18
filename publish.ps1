@@ -1,4 +1,4 @@
-# 一键发布到 GitHub（需要先安装并登录 GitHub CLI）
+﻿# 一键发布到 GitHub（需要先安装并登录 GitHub CLI）
 # 用法： .\publish.ps1            -> 创建 public 仓库并推送
 #        .\publish.ps1 -Visibility private
 
