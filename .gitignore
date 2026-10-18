@@ -20,3 +20,4 @@ publish.cmd
 .vs/
 .idea/
 *.user
+RELEASE_NOTES.md
