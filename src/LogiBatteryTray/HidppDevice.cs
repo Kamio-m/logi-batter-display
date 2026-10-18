@@ -55,6 +55,9 @@ public sealed class HidppDevice
 
     public byte DeviceIndex { get; }
     public string LastError { get; private set; } = "";
+
+    /// <summary>最近一次 0x41 设备连接通知（断开/连接）。</summary>
+    public byte[] LastNotification { get; private set; }
     public byte[] LastResponse { get; private set; }
     public List<HidppFeature> Features { get; } = new();
 
@@ -79,6 +82,23 @@ public sealed class HidppDevice
         return report;
     }
 
+    /// <summary>记录 0x41 连接通知（byte3：0=断开，1=连接；接收器用 0xFF + 载荷里的设备号）。</summary>
+    private void CaptureNotification(byte[] report)
+    {
+        if (report == null || report.Length < 5 || report[2] != 0x41) return;
+        LastNotification = report;
+    }
+
+    /// <summary>从最近的通知里解析指定设备号的连接状态：false=已断开，true=已连接，null=未知。</summary>
+    public bool? LastConnectionState(byte deviceIndex)
+    {
+        var notification = LastNotification;
+        if (notification == null || notification.Length < 5) return null;
+
+        byte target = notification[1] == 0xFF ? notification[4] : notification[1];
+        if (target != deviceIndex) return null;
+        return notification[3] != 0;
+    }
     /// <summary>发送一条特性请求并等待应答；成功返回参数区，失败返回 null。</summary>
     public byte[] Call(byte featureIndex, byte function, params byte[] parameters)
         => Call(featureIndex, function, 2500, parameters);
@@ -88,7 +108,7 @@ public sealed class HidppDevice
         var report = BuildReport(featureIndex, function, parameters);
         LastResponse = null;
 
-        _hid.Drain();
+        foreach (var pending in _hid.Drain()) CaptureNotification(pending);
         if (!_hid.Write(report)) { LastError = "写入失败"; return null; }
 
         long deadline = Environment.TickCount64 + timeoutMs;
@@ -100,6 +120,7 @@ public sealed class HidppDevice
             var response = _hid.Read(remaining);
             if (response == null) { LastError = "设备无响应"; return null; }
             if (response.Length < 7) continue;
+            CaptureNotification(response);
 
             // 接收器可能用 0x01 或 0x81 回复同一个设备号
             if ((response[1] & 0x7F) != (DeviceIndex & 0x7F)) continue;

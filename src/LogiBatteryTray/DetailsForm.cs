@@ -100,9 +100,10 @@ internal sealed class DetailsForm : Form
 
         string name = device?.Name ?? "罗技鼠标";
         string percentText = battery?.Percent is int percent ? $"{percent}%" : "--";
+        string offlineLabel = _service.Primary?.PoweredOff == true ? "停用" : "休眠";
         string status = online
             ? battery.StatusText
-            : battery?.Percent != null ? $"休眠 · 上次 {battery.Percent}%" : "未连接";
+            : battery?.Percent != null ? $"{offlineLabel} · 上次 {battery.Percent}%" : "未连接";
         if (online && battery?.Charging == true && _service.ChargeRatePerHour is double rate && rate >= 0.5)
             status += $" · 约 +{rate:F0}%/小时";
         string updated = device?.UpdatedAt is DateTime time

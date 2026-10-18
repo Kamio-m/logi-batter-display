@@ -203,12 +203,17 @@ public sealed class HidDevice : IDisposable
     }
 
     /// <summary>清空缓冲区里滞留的输入报告。</summary>
-    public void Drain()
+    /// <summary>读出并返回所有待处理的输入报文（含通知）。</summary>
+    public List<byte[]> Drain()
     {
+        var drained = new List<byte[]>();
         for (int i = 0; i < 8; i++)
         {
-            if (Read(0) == null) break;
+            var report = Read(0);
+            if (report == null) break;
+            drained.Add(report);
         }
+        return drained;
     }
 
     public bool SetFeature(byte[] report) => Native.HidD_SetFeature(_handle, report, report.Length);
