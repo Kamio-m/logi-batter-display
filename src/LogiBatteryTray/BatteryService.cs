@@ -22,7 +22,7 @@ public sealed class BatteryService
     private int _failures;
 
     public IReadOnlyList<LogiDevice> Devices => _devices;
-    public LogiDevice Primary => _devices.FirstOrDefault();
+    public LogiDevice Primary => _devices.FirstOrDefault(d => d.Online) ?? _devices.FirstOrDefault();
     public DateTime? LastUpdated { get; private set; }
 
     /// <summary>充电速率估算（百分比/小时），非充电时为 null。</summary>
@@ -30,6 +30,7 @@ public sealed class BatteryService
 
     private DateTime? _sampleTime;
     private int? _samplePercent;
+    private DateTime _lastRediscover = DateTime.MinValue;
     public string Problem { get; private set; }
 
     public bool Refresh()
@@ -63,11 +64,17 @@ public sealed class BatteryService
                 return true;
             }
 
-            // 接收器可能被拔掉/换成直连（插线充电），立刻重新发现一次
-            if (!anyInterfaceAlive)
+            // 接口还在但读不到：插线充电时鼠标会从接收器切到直连，
+            // 接收器仍枚举但不再应答，所以定期重扫一次找到新设备
+            bool rediscover = !anyInterfaceAlive || (DateTime.Now - _lastRediscover).TotalSeconds >= 15;
+            if (rediscover)
             {
+                _lastRediscover = DateTime.Now;
+                var previous = _devices.ToList();
+
                 _devices.Clear();
                 Discover();
+
                 foreach (var device in _devices)
                 {
                     if (ReadInto(device) == ReadResult.Ok) anyOk = true;
@@ -78,10 +85,23 @@ public sealed class BatteryService
                     _failures = 0;
                     Problem = null;
                     LastUpdated = DateTime.Now;
+                    UpdateChargeRate();
                     return true;
                 }
 
-                Problem = "未检测到鼠标（请确认接收器插好或数据线连接正常）";
+                if (_devices.Count == 0)
+                {
+                    // 扫不到（充电/休眠中）：保留上次记录，继续显示“休眠 · 上次 x%”
+                    _devices.AddRange(previous);
+                    Problem = previous.Count == 0
+                        ? "未检测到鼠标（请确认接收器插好或数据线连接正常）"
+                        : "鼠标休眠中，移动鼠标即可刷新";
+                    _failures++;
+                    return false;
+                }
+
+                Problem = "鼠标休眠中，移动鼠标即可刷新";
+                _failures++;
                 return false;
             }
 
