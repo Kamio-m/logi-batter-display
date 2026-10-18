@@ -55,9 +55,32 @@ if ($CheckOnly) {
 }
 
 if (-not $loggedIn) {
-    Write-Host "尚未登录 GitHub，即将打开浏览器授权…" -ForegroundColor Yellow
-    & $ghExe auth login --hostname github.com --git-protocol https --web
-    if ($LASTEXITCODE -ne 0) { throw "登录失败" }
+    if ($env:GH_TOKEN -or $env:GITHUB_TOKEN) {
+        Write-Host "检测到 GH_TOKEN / GITHUB_TOKEN 环境变量，跳过交互登录。"
+    }
+    else {
+        Write-Host "尚未登录 GitHub，即将打开浏览器授权…" -ForegroundColor Yellow
+        $previousEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        & $ghExe auth login --hostname github.com --git-protocol https --web 2>&1 |
+            ForEach-Object { Write-Host $_ }
+        $loginExit = $LASTEXITCODE
+        $ErrorActionPreference = $previousEap
+
+        if ($loginExit -ne 0) {
+            Write-Host ""
+            Write-Host "登录失败。常见原因：" -ForegroundColor Red
+            Write-Host "  1) 网络到不了 github.com —— 需要代理，先设置："
+            Write-Host '       set HTTPS_PROXY=http://127.0.0.1:7890'
+            Write-Host '       set HTTP_PROXY=http://127.0.0.1:7890'
+            Write-Host "     然后重新运行 publish.cmd"
+            Write-Host "  2) 浏览器没有完成授权（设备码过期就重来一次）"
+            Write-Host "  3) 改用令牌：在 GitHub 生成 PAT 后执行"
+            Write-Host '       set GH_TOKEN=你的令牌'
+            Write-Host "       publish.cmd"
+            exit 1
+        }
+    }
 }
 
 $existing = git remote get-url origin 2>$null
