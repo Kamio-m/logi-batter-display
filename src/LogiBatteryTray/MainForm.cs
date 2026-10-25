@@ -23,14 +23,12 @@ internal sealed class MainForm : Form
     private readonly Panel[] _pages;
     private readonly NavButton[] _navs;
 
-    // 设备页
     private Label _nameLabel;
     private Label _statusLabel;
     private Label _percentLabel;
     private Label _updatedLabel;
     private PictureBox _ringBox;
 
-    // 设置页
     private CheckBox _percentCheck;
     private CheckBox _autostartCheck;
     private CheckBox _notifyCheck;
@@ -44,7 +42,7 @@ internal sealed class MainForm : Form
     private readonly Color _border;
     private readonly Color _fore;
     private readonly Color _secondary;
-    private readonly Color _accent = Color.FromArgb(58, 130, 255);
+    private static readonly Color Accent = Color.FromArgb(58, 130, 255);
 
     private bool _loading;
 
@@ -60,12 +58,12 @@ internal sealed class MainForm : Form
         _app = app;
         _light = Theme.IsLightTaskbar();
 
-        _background = _light ? Color.FromArgb(247, 247, 250) : Color.FromArgb(28, 28, 30);
-        _sidebarColor = _light ? Color.White : Color.FromArgb(35, 35, 38);
-        _cardColor = _light ? Color.White : Color.FromArgb(40, 40, 44);
-        _border = _light ? Color.FromArgb(228, 228, 233) : Color.FromArgb(54, 54, 59);
-        _fore = _light ? Color.FromArgb(25, 25, 29) : Color.FromArgb(242, 242, 246);
-        _secondary = _light ? Color.FromArgb(110, 110, 118) : Color.FromArgb(154, 154, 162);
+        _background = _light ? Color.FromArgb(246, 247, 250) : Color.FromArgb(26, 26, 29);
+        _sidebarColor = _light ? Color.FromArgb(252, 252, 254) : Color.FromArgb(33, 33, 37);
+        _cardColor = _light ? Color.White : Color.FromArgb(40, 40, 45);
+        _border = _light ? Color.FromArgb(227, 227, 233) : Color.FromArgb(56, 56, 62);
+        _fore = _light ? Color.FromArgb(24, 24, 28) : Color.FromArgb(243, 243, 247);
+        _secondary = _light ? Color.FromArgb(108, 108, 116) : Color.FromArgb(152, 152, 160);
 
         Text = "LogiBatteryTray";
         FormBorderStyle = FormBorderStyle.FixedSingle;
@@ -74,37 +72,48 @@ internal sealed class MainForm : Form
         BackColor = _background;
         ForeColor = _fore;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size((int)S(760), (int)S(520));
+        ClientSize = new Size((int)S(812), (int)S(548));
+        DoubleBuffered = true;
 
+        // ---------- 左侧功能栏 ----------
         _sidebar = new Panel
         {
             Location = P(0, 0),
-            Size = new Size((int)S(184), (int)S(520)),
+            Size = new Size((int)S(212), (int)S(548)),
             BackColor = _sidebarColor,
         };
         _sidebar.Paint += PaintSidebar;
         Controls.Add(_sidebar);
 
-        MakeLabel(22, 22, "LogiBatteryTray", 12f, FontStyle.Bold, _fore, _sidebar);
-        MakeLabel(22, 46, "罗技鼠标电量", 8.5f, FontStyle.Regular, _secondary, _sidebar);
+        float navTop = S(104);
 
         _navs = new[]
         {
-            new NavButton("设备", _fore, _secondary, _accent) { Location = P(14, 88), Size = new Size((int)S(156), (int)S(36)) },
-            new NavButton("设置", _fore, _secondary, _accent) { Location = P(14, 130), Size = new Size((int)S(156), (int)S(36)) },
-            new NavButton("关于", _fore, _secondary, _accent) { Location = P(14, 172), Size = new Size((int)S(156), (int)S(36)) },
+            new NavButton("\uE83F", "设备", _fore, _secondary, Accent) { Location = P(14, navTop) },
+            new NavButton("\uE713", "设置", _fore, _secondary, Accent) { Location = P(14, navTop + 46) },
+            new NavButton("\uE946", "关于", _fore, _secondary, Accent) { Location = P(14, navTop + 92) },
         };
 
         for (int i = 0; i < _navs.Length; i++)
         {
             int index = i;
+            _navs[i].Size = new Size((int)S(184), (int)S(40));
             _navs[i].Click += (_, _) => ShowPage(index);
             _sidebar.Controls.Add(_navs[i]);
         }
 
-        MakeLabel(22, 480, $"v{typeof(MainForm).Assembly.GetName().Version?.ToString(3)}",
-            8f, FontStyle.Regular, _secondary, _sidebar);
+        var versionLabel = new Label
+        {
+            Text = $"v{typeof(MainForm).Assembly.GetName().Version?.ToString(3)}",
+            AutoSize = true,
+            Font = new Font("Segoe UI", 8f),
+            ForeColor = _secondary,
+            BackColor = Color.Transparent,
+            Location = P(22, 510),
+        };
+        _sidebar.Controls.Add(versionLabel);
 
+        // ---------- 右侧内容页 ----------
         _pages = new[] { BuildDevicePage(), BuildSettingsPage(), BuildAboutPage() };
         foreach (var page in _pages) Controls.Add(page);
 
@@ -119,20 +128,24 @@ internal sealed class MainForm : Form
 
     private Panel NewPage() => new()
     {
-        Location = P(184, 0),
-        Size = new Size((int)S(576), (int)S(520)),
+        Location = P(212, 0),
+        Size = new Size((int)S(600), (int)S(548)),
         BackColor = _background,
         Visible = false,
     };
 
+    // ---------- 设备页 ----------
     private Panel BuildDevicePage()
     {
         var page = NewPage();
 
+        float y = PlaceTitle(page, "设备", "查看当前连接的罗技鼠标");
+        y += S(8);
+
         var card = new Panel
         {
-            Location = P(24, 24),
-            Size = new Size((int)S(528), (int)S(196)),
+            Location = P(28, y),
+            Size = new Size((int)S(544), (int)S(216)),
             BackColor = Color.Transparent,
         };
         card.Paint += (_, e) => PaintCard(e, card, S(14));
@@ -140,46 +153,59 @@ internal sealed class MainForm : Form
 
         _ringBox = new PictureBox
         {
-            Location = P(40, 44),
-            Size = new Size((int)S(124), (int)S(124)),
+            Location = P(26, 28),
+            Size = new Size((int)S(158), (int)S(158)),
             SizeMode = PictureBoxSizeMode.Zoom,
             BackColor = Color.Transparent,
         };
         card.Controls.Add(_ringBox);
 
-        _nameLabel = MakeLabel(200, 40, "罗技鼠标", 14f, FontStyle.Bold, _fore, card);
-        _statusLabel = MakeLabel(200, 70, "使用中", 9.5f, FontStyle.Regular, _secondary, card);
-        _percentLabel = MakeLabel(200, 94, "--", 38f, FontStyle.Bold, _fore, card);
-        _updatedLabel = MakeLabel(202, 158, "", 8.5f, FontStyle.Regular, _secondary, card);
+        float infoY = S(30);
+        _nameLabel = AddLabel(card, 206, infoY, "罗技鼠标", 14f, FontStyle.Bold, _fore);
+        infoY = _nameLabel.Bottom + S(4);
+        _statusLabel = AddLabel(card, 206, infoY, "使用中", 9.5f, FontStyle.Regular, _secondary);
+        infoY = _statusLabel.Bottom + S(10);
+        _percentLabel = AddLabel(card, 206, infoY, "--", 32f, FontStyle.Bold, _fore);
+        infoY = _percentLabel.Bottom + S(4);
+        _updatedLabel = AddLabel(card, 208, infoY, "", 8.5f, FontStyle.Regular, _secondary);
 
-        MakeLabel(24, 252, "快捷操作", 9.5f, FontStyle.Bold, _fore, page);
+        float actionsY = y + S(238);
+        AddLabel(page, 28, actionsY, "快捷操作", 9.5f, FontStyle.Bold, _fore);
 
-        var refresh = MakeButton(24, 282, "立即刷新", primary: true);
+        var refresh = MakeButton(28, actionsY + S(26), "立即刷新", primary: true);
         refresh.Parent = page;
         refresh.Click += (_, _) => _app.RefreshNow();
 
-        var log = MakeButton(152, 282, "打开日志");
+        var log = MakeButton(156, actionsY + S(26), "打开日志");
         log.Parent = page;
         log.Click += (_, _) => _app.OpenLogFolderPublic();
 
         return page;
     }
 
+    // ---------- 设置页 ----------
     private Panel BuildSettingsPage()
     {
         var page = NewPage();
+        float y = PlaceTitle(page, "设置", "所有修改都会立即生效");
+        y += S(14);
 
-        MakeLabel(24, 24, "外观", 9.5f, FontStyle.Bold, _fore, page);
-        _shapeButton = MakeValueButton(24, 54, "图标形状", "圆环", page);
-        _percentCheck = MakeCheck(24, 98, "图标显示百分比（仅电池图标）", page);
+        y = Section(page, "外观", y);
+        _shapeButton = MakeValueButton(page, 28, y, "图标形状", "圆环");
+        y += S(46);
+        _percentCheck = MakeCheck(page, 28, y, "图标显示百分比（电池图标时生效）");
+        y = _percentCheck.Bottom + S(18);
 
-        MakeLabel(24, 144, "行为", 9.5f, FontStyle.Bold, _fore, page);
-        _intervalButton = MakeValueButton(24, 174, "刷新间隔", "5 分钟", page);
-        _offlineButton = MakeValueButton(24, 216, "关机判定", "2 分钟", page);
-        _autostartCheck = MakeCheck(24, 260, "开机自动启动", page);
-        _notifyCheck = MakeCheck(24, 292, "电量低于 20% 时通知", page);
-
-        MakeLabel(24, 334, "点击右侧数值可切换", 8f, FontStyle.Regular, _secondary, page);
+        y = Section(page, "行为", y);
+        _intervalButton = MakeValueButton(page, 28, y, "刷新间隔", "5 分钟");
+        y += S(46);
+        _offlineButton = MakeValueButton(page, 28, y, "关机判定", "2 分钟");
+        y += S(46);
+        _autostartCheck = MakeCheck(page, 28, y, "开机自动启动");
+        y = _autostartCheck.Bottom + S(10);
+        _notifyCheck = MakeCheck(page, 28, y, "电量低于 20% 时通知");
+        y = _notifyCheck.Bottom + S(10);
+        AddLabel(page, 28, y, "点击右侧数值可切换", 8f, FontStyle.Regular, _secondary);
 
         _percentCheck.CheckedChanged += (_, _) => OnSettingChanged();
         _autostartCheck.CheckedChanged += (_, _) => OnSettingChanged();
@@ -192,39 +218,146 @@ internal sealed class MainForm : Form
         return page;
     }
 
+    // ---------- 关于页 ----------
     private Panel BuildAboutPage()
     {
         var page = NewPage();
+        float y = PlaceTitle(page, "关于", "LogiBatteryTray");
+        y += S(8);
 
         var card = new Panel
         {
-            Location = P(24, 24),
-            Size = new Size((int)S(528), (int)S(156)),
+            Location = P(28, y),
+            Size = new Size((int)S(544), (int)S(168)),
             BackColor = Color.Transparent,
         };
         card.Paint += (_, e) => PaintCard(e, card, S(14));
         page.Controls.Add(card);
 
-        MakeLabel(28, 26, "LogiBatteryTray", 14f, FontStyle.Bold, _fore, card);
-        MakeLabel(28, 56, $"版本 {typeof(MainForm).Assembly.GetName().Version?.ToString(3)}", 9f, FontStyle.Regular, _secondary, card);
-        MakeLabel(28, 84, "在任务栏显示罗技鼠标电量，直接读取 HID++ 2.0，不需要 G HUB。", 8.5f, FontStyle.Regular, _secondary, card);
-        MakeLabel(28, 108, @"数据目录 %APPDATA%\LogiBatteryTray", 8.5f, FontStyle.Regular, _secondary, card);
+        float cy = S(26);
+        var title = AddLabel(card, 28, cy, "LogiBatteryTray", 13f, FontStyle.Bold, _fore);
+        cy = title.Bottom + S(4);
+        var ver = AddLabel(card, 28, cy, $"版本 {typeof(MainForm).Assembly.GetName().Version?.ToString(3)}", 9f, FontStyle.Regular, _secondary);
+        cy = ver.Bottom + S(12);
+        var desc = AddLabel(card, 28, cy, "在任务栏显示罗技鼠标电量，直接读取 HID++ 2.0，不需要 G HUB。", 8.5f, FontStyle.Regular, _secondary);
+        cy = desc.Bottom + S(6);
+        AddLabel(card, 28, cy, @"数据目录 %APPDATA%\LogiBatteryTray", 8.5f, FontStyle.Regular, _secondary);
 
-        var log = MakeButton(24, 200, "打开日志");
+        float buttonsY = y + S(190);
+        var log = MakeButton(28, buttonsY, "打开日志");
         log.Parent = page;
         log.Click += (_, _) => _app.OpenLogFolderPublic();
 
-        var quit = MakeButton(152, 200, "退出程序");
+        var quit = MakeButton(156, buttonsY, "退出程序");
         quit.Parent = page;
         quit.Click += (_, _) => { _app.ExitAppPublic(); Close(); };
 
         return page;
     }
 
+    /// <summary>画页面标题，返回内容起始 y。</summary>
+    private float PlaceTitle(Panel page, string title, string subtitle)
+    {
+        var titleLabel = AddLabel(page, 28, 26, title, 17f, FontStyle.Bold, _fore);
+        var subtitleLabel = AddLabel(page, 30, titleLabel.Bottom + S(2), subtitle, 8.5f, FontStyle.Regular, _secondary);
+        return subtitleLabel.Bottom + S(10);
+    }
+
+    private float Section(Panel page, string text, float y)
+    {
+        var label = AddLabel(page, 28, y, text, 9.5f, FontStyle.Bold, _fore);
+        return label.Bottom + S(10);
+    }
+
+    /// <summary>加一个自动大小的标签，返回它（Bottom 可用于继续排版）。</summary>
+    private Label AddLabel(Control parent, float x, float y, string text, float size, FontStyle style, Color color)
+    {
+        var label = new Label
+        {
+            Text = text,
+            AutoSize = true,
+            Location = P(x, y),
+            Font = new Font("Segoe UI", size, style),
+            ForeColor = color,
+            BackColor = Color.Transparent,
+        };
+        parent.Controls.Add(label);
+        return label;
+    }
+
+    private CheckBox MakeCheck(Panel page, float x, float y, string text)
+    {
+        var check = new CheckBox
+        {
+            Text = text,
+            AutoSize = true,
+            Location = P(x, y),
+            ForeColor = _fore,
+            FlatStyle = FlatStyle.Flat,
+        };
+        page.Controls.Add(check);
+        return check;
+    }
+
+    private Button MakeValueButton(Panel page, float x, float y, string caption, string value)
+    {
+        var captionLabel = AddLabel(page, x, y + S(8), caption, 9f, FontStyle.Regular, _secondary);
+
+        var button = new Button
+        {
+            Text = value,
+            Location = new Point(captionLabel.Right + (int)S(16), (int)(y - S(4))),
+            Size = new Size((int)S(168), (int)S(34)),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = _light ? Color.FromArgb(240, 240, 245) : Color.FromArgb(48, 48, 53),
+            ForeColor = _fore,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding((int)S(10), 0, 0, 0),
+        };
+        button.FlatAppearance.BorderColor = _border;
+        page.Controls.Add(button);
+        return button;
+    }
+
+    private Button MakeButton(float x, float y, string text, bool primary = false)
+    {
+        var button = new Button
+        {
+            Text = text,
+            Location = P(x, y),
+            Size = new Size((int)S(116), (int)S(34)),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = primary
+                ? Color.FromArgb(10, 132, 255)
+                : (_light ? Color.FromArgb(240, 240, 245) : Color.FromArgb(48, 48, 53)),
+            ForeColor = primary ? Color.White : _fore,
+        };
+        button.FlatAppearance.BorderColor = _border;
+        return button;
+    }
+
     private void PaintSidebar(object sender, PaintEventArgs e)
     {
-        using var pen = new Pen(_border, 1f);
-        e.Graphics.DrawLine(pen, _sidebar.Width - 0.5f, 0, _sidebar.Width - 0.5f, _sidebar.Height);
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+        // 右分割线
+        using (var pen = new Pen(_border, 1f))
+            e.Graphics.DrawLine(pen, _sidebar.Width - 0.5f, 0, _sidebar.Width - 0.5f, _sidebar.Height);
+
+        // 图标：圆环 + 中心点
+        var logoRect = new RectangleF(S(22), S(24), S(28), S(28));
+        using (var pen = new Pen(Accent, S(3.4f)))
+            e.Graphics.DrawEllipse(pen, logoRect);
+        using (var brush = new SolidBrush(Accent))
+            e.Graphics.FillEllipse(brush, logoRect.X + logoRect.Width / 2 - S(3), logoRect.Y + logoRect.Height / 2 - S(3), S(6), S(6));
+
+        using var titleFont = new Font("Segoe UI", 11.5f, FontStyle.Bold);
+        using var titleBrush = new SolidBrush(_fore);
+        e.Graphics.DrawString("LogiBatteryTray", titleFont, titleBrush, S(60), S(22));
+
+        using var subFont = new Font("Segoe UI", 8f);
+        using var subBrush = new SolidBrush(_secondary);
+        e.Graphics.DrawString("罗技鼠标电量", subFont, subBrush, S(60), S(46));
     }
 
     private void PaintCard(PaintEventArgs e, Control card, float radius)
@@ -262,72 +395,6 @@ internal sealed class MainForm : Form
             _navs[i].Selected = i == index;
     }
 
-    private Label MakeLabel(float x, float y, string text, float size, FontStyle style, Color color, Control parent)
-    {
-        var label = new Label
-        {
-            Text = text,
-            AutoSize = true,
-            Location = P(x, y),
-            Font = new Font("Segoe UI", size, style),
-            ForeColor = color,
-            BackColor = Color.Transparent,
-        };
-        parent.Controls.Add(label);
-        return label;
-    }
-
-    private CheckBox MakeCheck(float x, float y, string text, Control parent)
-    {
-        var check = new CheckBox
-        {
-            Text = text,
-            AutoSize = true,
-            Location = P(x, y),
-            ForeColor = _fore,
-            FlatStyle = FlatStyle.Flat,
-        };
-        parent.Controls.Add(check);
-        return check;
-    }
-
-    private Button MakeValueButton(float x, float y, string caption, string value, Control parent)
-    {
-        MakeLabel(x, y + S(7), caption, 9f, FontStyle.Regular, _secondary, parent);
-
-        var button = new Button
-        {
-            Text = value,
-            Location = P(x + 110, y),
-            Size = new Size((int)S(170), (int)S(32)),
-            FlatStyle = FlatStyle.Flat,
-            BackColor = _light ? Color.FromArgb(240, 240, 245) : Color.FromArgb(48, 48, 52),
-            ForeColor = _fore,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding((int)S(10), 0, 0, 0),
-        };
-        button.FlatAppearance.BorderColor = _border;
-        parent.Controls.Add(button);
-        return button;
-    }
-
-    private Button MakeButton(float x, float y, string text, bool primary = false)
-    {
-        var button = new Button
-        {
-            Text = text,
-            Location = P(x, y),
-            Size = new Size((int)S(112), (int)S(34)),
-            FlatStyle = FlatStyle.Flat,
-            BackColor = primary
-                ? Color.FromArgb(10, 132, 255)
-                : (_light ? Color.FromArgb(240, 240, 245) : Color.FromArgb(48, 48, 52)),
-            ForeColor = primary ? Color.White : _fore,
-        };
-        button.FlatAppearance.BorderColor = _border;
-        return button;
-    }
-
     private void Cycle(Button button, int[] values, string[] texts, Action<int> apply)
     {
         if (_loading) return;
@@ -351,7 +418,6 @@ internal sealed class MainForm : Form
         _autostartCheck.Checked = AppSettings.IsAutostartEnabled();
         _notifyCheck.Checked = settings.LowBatteryNotify;
         _percentCheck.Checked = settings.ShowPercentInIcon;
-        _percentCheck.Enabled = settings.IconShapeMode == (int)IconShape.Battery;
 
         _intervalButton.Text = IntervalTexts[IndexOr(IntervalValues, settings.IntervalSeconds, 1)];
         _shapeButton.Text = ShapeTexts[IndexOr(ShapeValues, settings.IconShapeMode, 0)];
@@ -377,7 +443,6 @@ internal sealed class MainForm : Form
         AppSettings.SetAutostart(_autostartCheck.Checked);
         settings.Autostart = _autostartCheck.Checked;
 
-        _percentCheck.Enabled = settings.IconShapeMode == (int)IconShape.Battery;
 
         _app.ApplySettingsFromWindow();
         UpdateView();
@@ -404,9 +469,10 @@ internal sealed class MainForm : Form
             ? $"更新于 {time:HH:mm:ss}"
             : (_app.Service.Problem ?? "尚未读取到数据");
 
-        _percentCheck.Enabled = _app.Settings.IconShapeMode == (int)IconShape.Battery;
 
-        int size = (int)S(124);
+        LayoutInfoColumn();
+
+        int size = (int)S(158);
         var previous = _ringBox.Image;
         try
         {
@@ -421,22 +487,38 @@ internal sealed class MainForm : Form
         previous?.Dispose();
     }
 
+    /// <summary>文字高度会随内容和 DPI 变化，这里重新排一次，避免重叠。</summary>
+    private void LayoutInfoColumn()
+    {
+        float y = S(30);
+        _nameLabel.Top = (int)y;
+        y = _nameLabel.Bottom + S(4);
+        _statusLabel.Top = (int)y;
+        y = _statusLabel.Bottom + S(10);
+        _percentLabel.Top = (int)y;
+        y = _percentLabel.Bottom + S(4);
+        _updatedLabel.Top = (int)y;
+    }
+
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         _ringBox.Image?.Dispose();
         base.OnFormClosed(e);
     }
 
-    /// <summary>左侧功能栏按钮（圆角高亮 + 悬停效果）。</summary>
+    /// <summary>左侧功能栏按钮：图标 + 文字，选中即时刷新。</summary>
     private sealed class NavButton : Control
     {
+        private readonly string _glyph;
         private readonly Color _fore;
         private readonly Color _muted;
         private readonly Color _accent;
         private bool _hover;
+        private bool _selected;
 
-        public NavButton(string text, Color fore, Color muted, Color accent)
+        public NavButton(string glyph, string text, Color fore, Color muted, Color accent)
         {
+            _glyph = glyph;
             Text = text;
             _fore = fore;
             _muted = muted;
@@ -449,7 +531,16 @@ internal sealed class MainForm : Form
 
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
-        public bool Selected { get; set; }
+        public bool Selected
+        {
+            get => _selected;
+            set
+            {
+                if (_selected == value) return;
+                _selected = value;
+                Invalidate();
+            }
+        }
 
         protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
         protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
@@ -459,18 +550,27 @@ internal sealed class MainForm : Form
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            if (Selected || _hover)
+            if (_selected || _hover)
             {
-                var color = Selected ? _accent : Color.FromArgb(30, _accent);
+                var color = _selected ? _accent : Color.FromArgb(32, _accent);
                 using var path = RoundedLocal(new RectangleF(0, 0, Width - 1, Height - 1), Height / 2f);
                 using var brush = new SolidBrush(color);
                 g.FillPath(brush, path);
             }
 
-            using var font = new Font("Segoe UI", 9.5f, Selected ? FontStyle.Bold : FontStyle.Regular);
-            using var textBrush = new SolidBrush(Selected ? Color.White : (_hover ? _fore : _muted));
-            using var format = new StringFormat { LineAlignment = StringAlignment.Center };
-            g.DrawString(Text, font, textBrush, new RectangleF(16, 0, Width - 20, Height), format);
+            using (var iconFont = new Font("Segoe MDL2 Assets", 11f))
+            using (var iconBrush = new SolidBrush(_selected ? Color.White : (_hover ? _fore : _muted)))
+            using (var iconFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            {
+                g.DrawString(_glyph, iconFont, iconBrush, new RectangleF(12, 0, 24, Height), iconFormat);
+            }
+
+            using (var textFont = new Font("Segoe UI", 9.5f, _selected ? FontStyle.Bold : FontStyle.Regular))
+            using (var textBrush = new SolidBrush(_selected ? Color.White : (_hover ? _fore : _muted)))
+            using (var textFormat = new StringFormat { LineAlignment = StringAlignment.Center })
+            {
+                g.DrawString(Text, textFont, textBrush, new RectangleF(46, 0, Width - 50, Height), textFormat);
+            }
         }
 
         private static GraphicsPath RoundedLocal(RectangleF rect, float radius)
