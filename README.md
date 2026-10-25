@@ -15,6 +15,7 @@
 - 右键菜单可调刷新间隔、开机启动、图标显示百分比、低电量提醒
 - 「个性化」子菜单：主题（跟随系统/深色/浅色）、菜单不透明度、圆角
 - 低于 20% 时发送 Windows 通知（进入通知中心，3 小时内不重复）
+- 显示蓝牙耳机 / 音箱 / 手机的电量（读取 Windows 已缓存的电量，不需要额外连接）
 - 支持 Unifying / Lightspeed 接收器，以及插线直连模式
 - 高 DPI 适配，浅色/深色任务栏自适应
 
@@ -47,6 +48,7 @@
 LogiBatteryTray.exe --once              读取一次电量并打印
 LogiBatteryTray.exe --features          枚举设备全部 HID++ 特性（排查用）
 LogiBatteryTray.exe --dump 0x1004       查看某个特性的原始应答
+LogiBatteryTray.exe --bt                列出 Windows 已缓存电量的蓝牙设备
 LogiBatteryTray.exe --iconpreview a.png 生成图标预览
 LogiBatteryTray.exe --popup-preview a.png  生成详情面板预览
 ```
@@ -62,6 +64,17 @@ LogiBatteryTray.exe --popup-preview a.png  生成详情面板预览
 
 日志：`%APPDATA%\LogiBatteryTray\log.txt`（菜单「打开日志文件夹」可直接打开）。
 
+## 蓝牙设备电量
+
+蓝牙设备（耳机、音箱、部分手机）的电量由 Windows 自己维护，本程序直接读取系统已经拿到的值：
+
+- 数据来源：HFP 设备节点的 PnP 属性 `{104EA319-6EE2-4701-BD47-8DDBF425BBE5}\2`（百分比）与 `\7`（更新时间）
+- 只要 **Windows 设置里能看到该设备电量**，这里就能显示；Windows 没拿到的设备不会出现在列表里
+- 无需管理员权限，也不会主动连接设备
+- 右键菜单顶部和详情面板会列出所有带电量属性的蓝牙设备
+
+命令行可直接查看：`LogiBatteryTray.exe --bt`
+
 ## 技术说明
 
 - 报文：HID++ 2.0 长报文（Report ID `0x11`，20 字节）
@@ -71,6 +84,7 @@ LogiBatteryTray.exe --popup-preview a.png  生成详情面板预览
 - 设备名：特性 `0x0005` 的**功能 1**
 - 图标：从 `C:\Windows\System32\batmeter.dll.mun` 提取的雪碧图（24px / 32px），0–9 帧对应 0–100% 电量
 - 通过 Raw Input 监听鼠标活动，唤醒后自动刷新
+- 蓝牙电量：枚举 `BTHENUM` 设备节点，读取 `{104EA319-…}\2` 属性（Windows 通过 HFP AT 指令更新）
 
 ## 构建
 

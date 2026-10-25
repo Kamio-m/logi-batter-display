@@ -55,6 +55,8 @@ internal sealed class TrayApp : ApplicationContext
     private readonly MouseActivityWatcher _mouseWatcher;
 
     private DetailsForm _details;
+    private IReadOnlyList<BluetoothBatteryInfo> _bluetooth = Array.Empty<BluetoothBatteryInfo>();
+    private readonly List<ToolStripItem> _bluetoothMenuItems = new();
     private BatteryWidget _widget;
     private bool _refreshing;
     private DateTime _lastLowWarning = DateTime.MinValue;
@@ -91,6 +93,7 @@ internal sealed class TrayApp : ApplicationContext
         _menu.Items.Add(BuildIntervalMenu());
         _menu.Items.Add(BuildPersonalizeMenu());
         _menu.Items.Add(BuildOfflineMenu());
+        UpdateBluetoothMenu();
         _menu.Items.Add(new ToolStripSeparator());
         ApplyMenuStyle();
         _menu.Items.Add(new ToolStripSeparator());
@@ -301,6 +304,38 @@ internal sealed class TrayApp : ApplicationContext
         return root;
     }
 
+    /// <summary>把蓝牙设备电量插到菜单头部下方。</summary>
+    private void UpdateBluetoothMenu()
+    {
+        foreach (var item in _bluetoothMenuItems)
+        {
+            _menu.Items.Remove(item);
+            item.Dispose();
+        }
+        _bluetoothMenuItems.Clear();
+
+        int insertAt = 2;
+        bool any = false;
+
+        foreach (var device in _bluetooth)
+        {
+            string text = device.Updated is DateTime time
+                ? $"{device.Name}   {device.Percent}%   ({time:HH:mm})"
+                : $"{device.Name}   {device.Percent}%";
+
+            var item = new ToolStripMenuItem(text) { Enabled = false };
+            _menu.Items.Insert(insertAt++, item);
+            _bluetoothMenuItems.Add(item);
+            any = true;
+        }
+
+        if (any)
+        {
+            var separator = new ToolStripSeparator();
+            _menu.Items.Insert(insertAt, separator);
+            _bluetoothMenuItems.Add(separator);
+        }
+    }
     private void ShowDetails()
     {
         if (_details != null && !_details.IsDisposed)
@@ -310,7 +345,7 @@ internal sealed class TrayApp : ApplicationContext
             return;
         }
 
-        _details = new DetailsForm(_service, RefreshAsync);
+        _details = new DetailsForm(_service, RefreshAsync, _bluetooth);
         _details.FormClosed += (_, _) => _details = null;
         _details.ShowNearTray();
     }
@@ -372,11 +407,18 @@ internal sealed class TrayApp : ApplicationContext
         Task.Run(() =>
         {
             bool ok = _service.Refresh();
+
+            IReadOnlyList<BluetoothBatteryInfo> bluetooth;
+            try { bluetooth = BluetoothBattery.ReadAll(); }
+            catch { bluetooth = Array.Empty<BluetoothBatteryInfo>(); }
+
             try
             {
                 _dispatcher.BeginInvoke(new Action(() =>
                 {
                     _refreshing = false;
+                    _bluetooth = bluetooth;
+                    UpdateBluetoothMenu();
                     Apply(ok);
                 }));
             }

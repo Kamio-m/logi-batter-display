@@ -8,13 +8,15 @@ internal sealed class DetailsForm : Form
 {
     private readonly BatteryService _service;
     private readonly Action _refresh;
+    private readonly IReadOnlyList<BluetoothBatteryInfo> _bluetooth;
     private readonly bool _light;
     private RectangleF _buttonRect;
 
-    public DetailsForm(BatteryService service, Action refresh)
+    public DetailsForm(BatteryService service, Action refresh, IReadOnlyList<BluetoothBatteryInfo> bluetooth)
     {
         _service = service;
         _refresh = refresh;
+        _bluetooth = bluetooth ?? Array.Empty<BluetoothBatteryInfo>();
         _light = Theme.IsLightTaskbar();
 
         FormBorderStyle = FormBorderStyle.None;
@@ -24,7 +26,8 @@ internal sealed class DetailsForm : Form
         DoubleBuffered = true;
         KeyPreview = true;
         BackColor = _light ? Color.White : Color.FromArgb(28, 28, 30);
-        Size = new Size((int)Dpi(320), (int)Dpi(196));
+        float extra = _bluetooth.Count > 0 ? 34 + _bluetooth.Count * 50 : 0;
+        Size = new Size((int)Dpi(320), (int)Dpi(196 + extra));
     }
 
     private float Dpi(float value) => value * DeviceDpi / 96f;
@@ -155,6 +158,49 @@ internal sealed class DetailsForm : Form
             graphics.DrawString(updated, footFont, footBrush, pad, Dpi(128));
         }
 
+        // 蓝牙设备
+        if (_bluetooth.Count > 0)
+        {
+            float y = Dpi(148);
+            using (var linePen = new Pen(Color.FromArgb(38, secondary), 1f))
+                graphics.DrawLine(linePen, pad, y, Width - pad, y);
+
+            y += Dpi(8);
+            using (var titleFont = new Font("Segoe UI", 8.5f, FontStyle.Regular, GraphicsUnit.Point))
+            using (var titleBrush = new SolidBrush(secondary))
+                graphics.DrawString("蓝牙设备", titleFont, titleBrush, pad, y);
+
+            y += Dpi(20);
+            using var nameFont = new Font("Segoe UI", 9.5f, FontStyle.Regular, GraphicsUnit.Point);
+            using var valueFont = new Font("Segoe UI", 10f, FontStyle.Bold, GraphicsUnit.Point);
+            using var nameBrush = new SolidBrush(primary);
+
+            foreach (var headset in _bluetooth)
+            {
+                Color tone = headset.Percent <= 20
+                    ? Color.FromArgb(255, 196, 40)
+                    : headset.Percent <= 40 ? Color.FromArgb(255, 159, 10) : Color.FromArgb(52, 199, 110);
+
+                graphics.DrawString(headset.Name, nameFont, nameBrush, pad, y);
+
+                string headsetText = $"{headset.Percent}%";
+                var valueSize = graphics.MeasureString(headsetText, valueFont);
+                using (var valueBrush = new SolidBrush(tone))
+                    graphics.DrawString(headsetText, valueFont, valueBrush, Width - pad - valueSize.Width, y - Dpi(1));
+
+                float barTop2 = y + Dpi(19);
+                float barHeight2 = Dpi(6);
+                using (var trackBrush = new SolidBrush(Color.FromArgb(40, secondary)))
+                    graphics.FillPath(trackBrush, Rounded(new RectangleF(pad, barTop2, contentWidth, barHeight2), barHeight2 / 2));
+
+                float ratio = Math.Clamp(headset.Percent / 100f, 0f, 1f);
+                ratio = Math.Max(ratio, 0.03f);
+                using (var fillBrush = new SolidBrush(tone))
+                    graphics.FillPath(fillBrush, Rounded(new RectangleF(pad, barTop2, contentWidth * ratio, barHeight2), barHeight2 / 2));
+
+                y += Dpi(50);
+            }
+        }
         // 刷新按钮
         _buttonRect = new RectangleF(Width - pad - Dpi(84), Height - pad - Dpi(32), Dpi(84), Dpi(32));
         using (var buttonPath = Rounded(_buttonRect, Dpi(9)))
