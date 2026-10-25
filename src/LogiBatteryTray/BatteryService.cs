@@ -44,7 +44,7 @@ public sealed class BatteryService
     private string _lastPath;
 
     /// <summary>连续无响应超过这个时长，判定为设备已关闭（协议层无法区分关机与休眠）。</summary>
-    public int PoweredOffAfterSeconds { get; set; } = 120;
+    public int PoweredOffAfterSeconds { get; set; } = 0;
     public string Problem { get; private set; }
 
     public bool Refresh()
