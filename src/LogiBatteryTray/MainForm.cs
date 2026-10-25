@@ -31,12 +31,12 @@ internal sealed class MainForm : Form
     private Panel _deviceContent;
     private Panel _emptyState;
 
-    private CheckBox _percentCheck;
-    private CheckBox _autostartCheck;
-    private CheckBox _notifyCheck;
-    private Button _shapeButton;
-    private Button _intervalButton;
-    private Button _offlineButton;
+    private ToggleSwitch _percentToggle;
+    private ToggleSwitch _autostartToggle;
+    private ToggleSwitch _notifyToggle;
+    private ValueButton _shapeButton;
+    private ValueButton _intervalButton;
+    private ValueButton _offlineButton;
 
     private readonly Color _background;
     private readonly Color _sidebarColor;
@@ -74,14 +74,14 @@ internal sealed class MainForm : Form
         BackColor = _background;
         ForeColor = _fore;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size((int)S(812), (int)S(548));
+        ClientSize = new Size((int)S(820), (int)S(600));
         DoubleBuffered = true;
 
         // ---------- 左侧功能栏 ----------
         _sidebar = new Panel
         {
             Location = P(0, 0),
-            Size = new Size((int)S(212), (int)S(548)),
+            Size = new Size((int)S(212), (int)S(600)),
             BackColor = _sidebarColor,
         };
         _sidebar.Paint += PaintSidebar;
@@ -104,16 +104,15 @@ internal sealed class MainForm : Form
             _sidebar.Controls.Add(_navs[i]);
         }
 
-        var versionLabel = new Label
+        _sidebar.Controls.Add(new Label
         {
             Text = $"v{typeof(MainForm).Assembly.GetName().Version?.ToString(3)}",
             AutoSize = true,
             Font = new Font("Segoe UI", 8f),
             ForeColor = _secondary,
             BackColor = Color.Transparent,
-            Location = P(22, 510),
-        };
-        _sidebar.Controls.Add(versionLabel);
+            Location = P(22, 562),
+        });
 
         // ---------- 右侧内容页 ----------
         _pages = new[] { BuildDevicePage(), BuildSettingsPage(), BuildAboutPage() };
@@ -128,10 +127,14 @@ internal sealed class MainForm : Form
 
     private Point P(float x, float y) => new((int)S(x), (int)S(y));
 
+    private Color ButtonBack => _light ? Color.FromArgb(243, 243, 247) : Color.FromArgb(48, 48, 54);
+    private Color ButtonHover => _light ? Color.FromArgb(233, 233, 240) : Color.FromArgb(56, 56, 63);
+    private Color ToggleOff => _light ? Color.FromArgb(214, 214, 221) : Color.FromArgb(74, 74, 82);
+
     private Panel NewPage() => new()
     {
         Location = P(212, 0),
-        Size = new Size((int)S(600), (int)S(548)),
+        Size = new Size((int)S(608), (int)S(600)),
         BackColor = _background,
         Visible = false,
     };
@@ -142,7 +145,7 @@ internal sealed class MainForm : Form
         var page = NewPage();
 
         float y = PlaceTitle(page, "设备", "查看当前连接的罗技鼠标");
-        y += S(8);
+        y += S(10);
 
         _deviceContent = new Panel { Location = P(0, 0), Size = page.Size, BackColor = Color.Transparent };
         page.Controls.Add(_deviceContent);
@@ -150,38 +153,11 @@ internal sealed class MainForm : Form
         var card = new Panel
         {
             Location = P(28, y),
-            Size = new Size((int)S(544), (int)S(216)),
+            Size = new Size((int)S(552), (int)S(216)),
             BackColor = Color.Transparent,
         };
         card.Paint += (_, e) => PaintCard(e, card, S(14));
         _deviceContent.Controls.Add(card);
-
-        _emptyState = new Panel { Location = P(0, 0), Size = page.Size, BackColor = Color.Transparent, Visible = false };
-        page.Controls.Add(_emptyState);
-
-        _emptyState.Controls.Add(new Label
-        {
-            Text = "连接设备",
-            Size = new Size((int)S(600), (int)S(52)),
-            Location = P(0, 236),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font("Segoe UI", 20f, FontStyle.Bold),
-            ForeColor = _fore,
-            BackColor = Color.Transparent,
-        });
-
-        _emptyState.Controls.Add(new Label
-        {
-            Text = "请插好罗技接收器或数据线",
-            Size = new Size((int)S(600), (int)S(24)),
-            Location = P(0, 292),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font("Segoe UI", 9f),
-            ForeColor = _secondary,
-            BackColor = Color.Transparent,
-        });
-
-        _emptyState.BringToFront();
 
         _ringBox = new PictureBox
         {
@@ -204,14 +180,41 @@ internal sealed class MainForm : Form
         float actionsY = y + S(238);
         AddLabel(_deviceContent, 28, actionsY, "快捷操作", 9.5f, FontStyle.Bold, _fore);
 
-        var refresh = MakeButton(28, actionsY + S(26), "立即刷新", primary: true);
+        var refresh = MakeButton(28, actionsY + S(26), "立即刷新", S(116), true);
         refresh.Parent = _deviceContent;
         refresh.Click += (_, _) => _app.RefreshNow();
 
-        var log = MakeButton(156, actionsY + S(26), "打开日志");
+        var log = MakeButton(156, actionsY + S(26), "打开日志", S(116));
         log.Parent = _deviceContent;
         log.Click += (_, _) => _app.OpenLogFolderPublic();
 
+        // 未连接时的整页提示
+        _emptyState = new Panel { Location = P(0, 0), Size = page.Size, BackColor = Color.Transparent, Visible = false };
+        page.Controls.Add(_emptyState);
+
+        _emptyState.Controls.Add(new Label
+        {
+            Text = "连接设备",
+            Size = new Size((int)S(608), (int)S(52)),
+            Location = P(0, 250),
+            TextAlign = ContentAlignment.MiddleCenter,
+            Font = new Font("Segoe UI", 20f, FontStyle.Bold),
+            ForeColor = _fore,
+            BackColor = Color.Transparent,
+        });
+
+        _emptyState.Controls.Add(new Label
+        {
+            Text = "请插好罗技接收器或数据线",
+            Size = new Size((int)S(608), (int)S(24)),
+            Location = P(0, 306),
+            TextAlign = ContentAlignment.MiddleCenter,
+            Font = new Font("Segoe UI", 9f),
+            ForeColor = _secondary,
+            BackColor = Color.Transparent,
+        });
+
+        _emptyState.BringToFront();
         return page;
     }
 
@@ -222,26 +225,23 @@ internal sealed class MainForm : Form
         float y = PlaceTitle(page, "设置", "所有修改都会立即生效");
         y += S(14);
 
-        y = Section(page, "外观", y);
-        _shapeButton = MakeValueButton(page, 28, y, "图标形状", "圆环");
-        y += S(46);
-        _percentCheck = MakeCheck(page, 28, y, "图标显示百分比（电池图标时生效）");
-        y = _percentCheck.Bottom + S(18);
+        var appearance = AddCard(page, "外观", 2, y);
+        float row = S(46);
+        row = AddValueRow(appearance, row, "图标形状", out _shapeButton, "圆环");
+        AddToggleRow(appearance, row, "图标显示百分比（电池图标时生效）", out _percentToggle);
 
-        y = Section(page, "行为", y);
-        _intervalButton = MakeValueButton(page, 28, y, "刷新间隔", "5 分钟");
-        y += S(46);
-        _offlineButton = MakeValueButton(page, 28, y, "关机判定", "2 分钟");
-        y += S(46);
-        _autostartCheck = MakeCheck(page, 28, y, "开机自动启动");
-        y = _autostartCheck.Bottom + S(10);
-        _notifyCheck = MakeCheck(page, 28, y, "电量低于 20% 时通知");
-        y = _notifyCheck.Bottom + S(10);
-        AddLabel(page, 28, y, "点击右侧数值可切换", 8f, FontStyle.Regular, _secondary);
+        y += appearance.Height + S(16);
 
-        _percentCheck.CheckedChanged += (_, _) => OnSettingChanged();
-        _autostartCheck.CheckedChanged += (_, _) => OnSettingChanged();
-        _notifyCheck.CheckedChanged += (_, _) => OnSettingChanged();
+        var behavior = AddCard(page, "行为", 4, y);
+        row = S(46);
+        row = AddValueRow(behavior, row, "刷新间隔", out _intervalButton, "2 秒");
+        row = AddValueRow(behavior, row, "关机判定", out _offlineButton, "2 分钟");
+        row = AddToggleRow(behavior, row, "开机自动启动", out _autostartToggle);
+        AddToggleRow(behavior, row, "电量低于 20% 时通知", out _notifyToggle);
+
+        _percentToggle.CheckedChanged += (_, _) => OnSettingChanged();
+        _autostartToggle.CheckedChanged += (_, _) => OnSettingChanged();
+        _notifyToggle.CheckedChanged += (_, _) => OnSettingChanged();
 
         _shapeButton.Click += (_, _) => Cycle(_shapeButton, ShapeValues, ShapeTexts, v => _app.Settings.IconShapeMode = v);
         _intervalButton.Click += (_, _) => Cycle(_intervalButton, IntervalValues, IntervalTexts, v => _app.Settings.IntervalSeconds = v);
@@ -255,12 +255,12 @@ internal sealed class MainForm : Form
     {
         var page = NewPage();
         float y = PlaceTitle(page, "关于", "LogiBatteryTray");
-        y += S(8);
+        y += S(10);
 
         var card = new Panel
         {
             Location = P(28, y),
-            Size = new Size((int)S(544), (int)S(168)),
+            Size = new Size((int)S(552), (int)S(170)),
             BackColor = Color.Transparent,
         };
         card.Paint += (_, e) => PaintCard(e, card, S(14));
@@ -275,19 +275,86 @@ internal sealed class MainForm : Form
         cy = desc.Bottom + S(6);
         AddLabel(card, 28, cy, @"数据目录 %APPDATA%\LogiBatteryTray", 8.5f, FontStyle.Regular, _secondary);
 
-        float buttonsY = y + S(190);
-        var log = MakeButton(28, buttonsY, "打开日志");
+        float buttonsY = y + S(192);
+        var log = MakeButton(28, buttonsY, "打开日志", S(116));
         log.Parent = page;
         log.Click += (_, _) => _app.OpenLogFolderPublic();
 
-        var quit = MakeButton(156, buttonsY, "退出程序");
+        var quit = MakeButton(156, buttonsY, "退出程序", S(116));
         quit.Parent = page;
         quit.Click += (_, _) => { _app.ExitAppPublic(); Close(); };
 
         return page;
     }
 
-    /// <summary>画页面标题，返回内容起始 y。</summary>
+    // ---------- 卡片与行 ----------
+    private Panel AddCard(Panel page, string title, int rows, float y)
+    {
+        int height = (int)S(46 + rows * 52 + 8);
+        var card = new Panel
+        {
+            Location = P(28, y),
+            Size = new Size((int)S(552), height),
+            BackColor = Color.Transparent,
+        };
+        card.Paint += (_, e) => PaintCard(e, card, S(14));
+        page.Controls.Add(card);
+
+        card.Controls.Add(new Label
+        {
+            Text = title,
+            AutoSize = true,
+            Location = P(20, 16),
+            Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+            ForeColor = _fore,
+            BackColor = Color.Transparent,
+        });
+
+        return card;
+    }
+
+    private float AddValueRow(Panel card, float y, string label, out ValueButton button, string value)
+    {
+        AddRowLabel(card, y, label);
+
+        button = new ValueButton(_fore, ButtonBack, _border, ButtonHover)
+        {
+            Text = value,
+            Size = new Size((int)S(168), (int)S(34)),
+            Location = new Point(card.Width - (int)S(168) - (int)S(20), (int)(y + (S(52) - S(34)) / 2)),
+        };
+        card.Controls.Add(button);
+
+        return y + S(52);
+    }
+
+    private float AddToggleRow(Panel card, float y, string label, out ToggleSwitch toggle)
+    {
+        AddRowLabel(card, y, label);
+
+        toggle = new ToggleSwitch(Accent, ToggleOff)
+        {
+            Size = new Size((int)S(46), (int)S(26)),
+            Location = new Point(card.Width - (int)S(46) - (int)S(20), (int)(y + (S(52) - S(26)) / 2)),
+        };
+        card.Controls.Add(toggle);
+
+        return y + S(52);
+    }
+
+    private void AddRowLabel(Panel card, float y, string text)
+    {
+        card.Controls.Add(new Label
+        {
+            Text = text,
+            AutoSize = true,
+            Font = new Font("Segoe UI", 9.5f),
+            ForeColor = _fore,
+            BackColor = Color.Transparent,
+            Location = new Point((int)S(20), (int)(y + (S(52) - S(22)) / 2)),
+        });
+    }
+
     private float PlaceTitle(Panel page, string title, string subtitle)
     {
         var titleLabel = AddLabel(page, 28, 26, title, 17f, FontStyle.Bold, _fore);
@@ -295,13 +362,6 @@ internal sealed class MainForm : Form
         return subtitleLabel.Bottom + S(10);
     }
 
-    private float Section(Panel page, string text, float y)
-    {
-        var label = AddLabel(page, 28, y, text, 9.5f, FontStyle.Bold, _fore);
-        return label.Bottom + S(10);
-    }
-
-    /// <summary>加一个自动大小的标签，返回它（Bottom 可用于继续排版）。</summary>
     private Label AddLabel(Control parent, float x, float y, string text, float size, FontStyle style, Color color)
     {
         var label = new Label
@@ -317,51 +377,15 @@ internal sealed class MainForm : Form
         return label;
     }
 
-    private CheckBox MakeCheck(Panel page, float x, float y, string text)
-    {
-        var check = new CheckBox
-        {
-            Text = text,
-            AutoSize = true,
-            Location = P(x, y),
-            ForeColor = _fore,
-            FlatStyle = FlatStyle.Flat,
-        };
-        page.Controls.Add(check);
-        return check;
-    }
-
-    private Button MakeValueButton(Panel page, float x, float y, string caption, string value)
-    {
-        var captionLabel = AddLabel(page, x, y + S(8), caption, 9f, FontStyle.Regular, _secondary);
-
-        var button = new Button
-        {
-            Text = value,
-            Location = new Point(captionLabel.Right + (int)S(16), (int)(y - S(4))),
-            Size = new Size((int)S(168), (int)S(34)),
-            FlatStyle = FlatStyle.Flat,
-            BackColor = _light ? Color.FromArgb(240, 240, 245) : Color.FromArgb(48, 48, 53),
-            ForeColor = _fore,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding((int)S(10), 0, 0, 0),
-        };
-        button.FlatAppearance.BorderColor = _border;
-        page.Controls.Add(button);
-        return button;
-    }
-
-    private Button MakeButton(float x, float y, string text, bool primary = false)
+    private Button MakeButton(float x, float y, string text, float width, bool primary = false)
     {
         var button = new Button
         {
             Text = text,
             Location = P(x, y),
-            Size = new Size((int)S(116), (int)S(34)),
+            Size = new Size((int)width, (int)S(34)),
             FlatStyle = FlatStyle.Flat,
-            BackColor = primary
-                ? Color.FromArgb(10, 132, 255)
-                : (_light ? Color.FromArgb(240, 240, 245) : Color.FromArgb(48, 48, 53)),
+            BackColor = primary ? Color.FromArgb(10, 132, 255) : ButtonBack,
             ForeColor = primary ? Color.White : _fore,
         };
         button.FlatAppearance.BorderColor = _border;
@@ -372,11 +396,9 @@ internal sealed class MainForm : Form
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-        // 右分割线
         using (var pen = new Pen(_border, 1f))
             e.Graphics.DrawLine(pen, _sidebar.Width - 0.5f, 0, _sidebar.Width - 0.5f, _sidebar.Height);
 
-        // 图标：圆环 + 中心点
         var logoRect = new RectangleF(S(22), S(24), S(28), S(28));
         using (var pen = new Pen(Accent, S(3.4f)))
             e.Graphics.DrawEllipse(pen, logoRect);
@@ -427,7 +449,7 @@ internal sealed class MainForm : Form
             _navs[i].Selected = i == index;
     }
 
-    private void Cycle(Button button, int[] values, string[] texts, Action<int> apply)
+    private void Cycle(ValueButton button, int[] values, string[] texts, Action<int> apply)
     {
         if (_loading) return;
 
@@ -436,6 +458,7 @@ internal sealed class MainForm : Form
 
         int next = (index + 1) % values.Length;
         button.Text = texts[next];
+        button.Invalidate();
         apply(values[next]);
 
         _app.ApplySettingsFromWindow();
@@ -447,9 +470,9 @@ internal sealed class MainForm : Form
         _loading = true;
 
         var settings = _app.Settings;
-        _autostartCheck.Checked = AppSettings.IsAutostartEnabled();
-        _notifyCheck.Checked = settings.LowBatteryNotify;
-        _percentCheck.Checked = settings.ShowPercentInIcon;
+        _autostartToggle.Checked = AppSettings.IsAutostartEnabled();
+        _notifyToggle.Checked = settings.LowBatteryNotify;
+        _percentToggle.Checked = settings.ShowPercentInIcon;
 
         _intervalButton.Text = IntervalTexts[IndexOr(IntervalValues, settings.IntervalSeconds, 1)];
         _shapeButton.Text = ShapeTexts[IndexOr(ShapeValues, settings.IconShapeMode, 0)];
@@ -469,12 +492,11 @@ internal sealed class MainForm : Form
         if (_loading) return;
 
         var settings = _app.Settings;
-        settings.LowBatteryNotify = _notifyCheck.Checked;
-        settings.ShowPercentInIcon = _percentCheck.Checked;
+        settings.LowBatteryNotify = _notifyToggle.Checked;
+        settings.ShowPercentInIcon = _percentToggle.Checked;
 
-        AppSettings.SetAutostart(_autostartCheck.Checked);
-        settings.Autostart = _autostartCheck.Checked;
-
+        AppSettings.SetAutostart(_autostartToggle.Checked);
+        settings.Autostart = _autostartToggle.Checked;
 
         _app.ApplySettingsFromWindow();
         UpdateView();
@@ -496,7 +518,7 @@ internal sealed class MainForm : Form
         string status = online
             ? battery!.StatusText
             : battery?.Percent != null ? $"{offlineLabel} · 上次 {battery.Percent}%"
-            : _app.Service.ReceiverConnected ? "未连接" : "请连接设备";
+            : receiverConnected ? "未连接" : "请连接设备";
 
         _nameLabel.Text = device?.Name ?? _app.Settings.LastDeviceName;
         _statusLabel.Text = status;
@@ -505,7 +527,6 @@ internal sealed class MainForm : Form
         _updatedLabel.Text = device?.UpdatedAt is DateTime time
             ? $"更新于 {time:HH:mm:ss}"
             : (_app.Service.Problem ?? "尚未读取到数据");
-
 
         LayoutInfoColumn();
 
@@ -524,7 +545,7 @@ internal sealed class MainForm : Form
         previous?.Dispose();
     }
 
-    /// <summary>文字高度会随内容和 DPI 变化，这里重新排一次，避免重叠。</summary>
+    /// <summary>文字高度随内容/DPI 变化，这里重新排一次避免重叠。</summary>
     private void LayoutInfoColumn()
     {
         float y = S(30);
