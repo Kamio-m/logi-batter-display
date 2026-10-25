@@ -142,10 +142,12 @@ public sealed class HidppDevice
         }
     }
 
-    public bool TryGetProtocolVersion(out double version)
+    public bool TryGetProtocolVersion(out double version) => TryGetProtocolVersion(out version, 900);
+
+    public bool TryGetProtocolVersion(out double version, int timeoutMs)
     {
         version = 0;
-        var payload = Call(0x00, 0x01, 900, 0x00, 0x00, 0x00);
+        var payload = Call(0x00, 0x01, timeoutMs, 0x00, 0x00, 0x00);
         if (payload == null || payload.Length < 3) return false;
         version = payload[0] + payload[1] / 10.0;
         return true;
@@ -189,15 +191,17 @@ public sealed class HidppDevice
         }
     }
 
-    public string ReadDeviceName()
+    public string ReadDeviceName() => ReadDeviceName(2500);
+
+    public string ReadDeviceName(int timeoutMs)
     {
         byte feature = GetFeatureIndex(FeatureDeviceName);
         if (feature == 0) return null;
 
         // 0x0005 功能 1：按索引取名称字符串；功能 0 只返回名称数量
-        var payload = Call(feature, 0x01, 2000, 0x00);
+        var payload = Call(feature, 0x01, timeoutMs, 0x00);
         if (payload == null || payload.Length == 0)
-            payload = Call(feature, 0x00, 2000);
+            payload = Call(feature, 0x00, timeoutMs);
         if (payload == null || payload.Length == 0) return null;
 
         string name = Encoding.UTF8.GetString(payload).TrimEnd('\0').Trim();
@@ -209,12 +213,14 @@ public sealed class HidppDevice
     }
 
     /// <summary>读取电量。优先 BATTERY_LEVEL_STATUS(0x1000)，再尝试 BATTERY_STATUS(0x1004) 与电压(0x1001)。</summary>
-    public BatteryReading ReadBattery()
+    public BatteryReading ReadBattery() => ReadBattery(2500);
+
+    public BatteryReading ReadBattery(int timeoutMs)
     {
         byte levelFeature = GetFeatureIndex(FeatureBatteryLevelStatus);
         if (levelFeature > 0)
         {
-            var payload = Call(levelFeature, 0x00);
+            var payload = Call(levelFeature, 0x00, timeoutMs);
             if (payload != null && payload.Length >= 3)
             {
                 int percent = payload[0];
@@ -245,7 +251,7 @@ public sealed class HidppDevice
         byte statusFeature = GetFeatureIndex(FeatureBatteryStatus);
         if (statusFeature > 0)
         {
-            var payload = Call(statusFeature, 0x01);
+            var payload = Call(statusFeature, 0x01, timeoutMs);
             if (payload != null && payload.Length >= 3)
             {
                 int percentage = payload[0];
@@ -282,7 +288,7 @@ public sealed class HidppDevice
         byte voltageFeature = GetFeatureIndex(FeatureBatteryVoltage);
         if (voltageFeature > 0)
         {
-            var payload = Call(voltageFeature, 0x00);
+            var payload = Call(voltageFeature, 0x00, timeoutMs);
             if (payload != null && payload.Length >= 2)
             {
                 int millivolts = payload[0] | (payload[1] << 8);
