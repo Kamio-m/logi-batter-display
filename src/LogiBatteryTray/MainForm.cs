@@ -38,6 +38,9 @@ internal sealed class MainForm : Form, IMessageFilter
     private ValueButton _shapeButton;
     private ValueButton _intervalButton;
     private ValueButton _offlineButton;
+    private ValueButton _deviceButton;
+    private readonly List<(string Key, string Label)> _deviceOptions = new();
+    private int _deviceIndex;
 
     private readonly Color _background;
     private readonly Color _sidebarColor;
@@ -227,6 +230,10 @@ internal sealed class MainForm : Form, IMessageFilter
         float y = PlaceTitle(page.Content, "设置", "所有修改都会立即生效");
         y += S(14);
 
+        var tray = AddCard(page.Content, "托盘", 1, y);
+        AddValueRow(tray, S(46), "显示设备", out _deviceButton, "—");
+        y += tray.Height + S(16);
+
         var appearance = AddCard(page.Content, "外观", 2, y);
         float row = S(46);
         row = AddValueRow(appearance, row, "图标形状", out _shapeButton, "圆环");
@@ -240,6 +247,8 @@ internal sealed class MainForm : Form, IMessageFilter
         row = AddValueRow(behavior, row, "关机判定", out _offlineButton, "2 分钟");
         row = AddToggleRow(behavior, row, "开机自动启动", out _autostartToggle);
         AddToggleRow(behavior, row, "电量低于 20% 时通知", out _notifyToggle);
+
+        _deviceButton.Click += (_, _) => CycleDevice();
 
         _percentToggle.CheckedChanged += (_, _) => OnSettingChanged();
         _autostartToggle.CheckedChanged += (_, _) => OnSettingChanged();
@@ -454,6 +463,53 @@ internal sealed class MainForm : Form, IMessageFilter
             _navs[i].Selected = i == index;
     }
 
+    private static string DeviceKeyOf(LogiDevice device) => device.Path + "#" + device.Name;
+
+    /// <summary>根据当前发现到的设备刷新“显示设备”选项。</summary>
+    private void RebuildDeviceOptions()
+    {
+        var devices = _app.Service.Devices;
+        string selected = _app.Settings.SelectedDeviceKey ?? "";
+
+        _deviceOptions.Clear();
+
+        if (devices.Count == 0)
+        {
+            _deviceOptions.Add((string.Empty, "未检测到设备"));
+        }
+        else if (devices.Count == 1)
+        {
+            _deviceOptions.Add((DeviceKeyOf(devices[0]), devices[0].Name));
+        }
+        else
+        {
+            _deviceOptions.Add(("auto", "自动（电量最低）"));
+            foreach (var device in devices)
+                _deviceOptions.Add((DeviceKeyOf(device), device.Name));
+        }
+
+        int index = _deviceOptions.FindIndex(option => option.Key == selected);
+        if (index < 0) index = devices.Count > 1 ? 0 : 0;
+
+        _deviceIndex = index;
+        _deviceButton.Text = _deviceOptions[index].Label;
+        _deviceButton.Invalidate();
+    }
+
+    private void CycleDevice()
+    {
+        if (_loading || _deviceOptions.Count <= 1) return;
+
+        _deviceIndex = (_deviceIndex + 1) % _deviceOptions.Count;
+        var option = _deviceOptions[_deviceIndex];
+
+        _deviceButton.Text = option.Label;
+        _deviceButton.Invalidate();
+
+        _app.Settings.SelectedDeviceKey = option.Key;
+        _app.ApplySettingsFromWindow();
+        UpdateView();
+    }
     private void Cycle(ValueButton button, int[] values, string[] texts, Action<int> apply)
     {
         if (_loading) return;
@@ -511,6 +567,8 @@ internal sealed class MainForm : Form, IMessageFilter
 
     public void UpdateView()
     {
+        RebuildDeviceOptions();
+
         bool receiverConnected = _app.Service.ReceiverConnected;
         _devicePage.Content.Visible = receiverConnected;
         _emptyState.Visible = !receiverConnected;
