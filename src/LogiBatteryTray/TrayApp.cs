@@ -522,10 +522,11 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
     private void OnTimerTick(object sender, EventArgs e)
     {
-        // 没找到设备或设备离线时加快重试，避免拔插接收器/插线后长时间不更新
-        _timer.Interval = DisplayDevice == null || !DisplayDevice.Online
-            ? 10_000
-            : Math.Max(1, _settings.IntervalSeconds) * 1000;
+        // 在线时每秒探一次（断电/休眠能立刻发现）；离线时每 2 秒重试（开机后能马上回来）
+        bool online = DisplayDevice?.Online == true;
+        _timer.Interval = online
+            ? Math.Min(1000, Math.Max(1, _settings.IntervalSeconds) * 1000)
+            : 2000;
         RefreshAsync();
     }
 
