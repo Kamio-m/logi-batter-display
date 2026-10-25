@@ -78,6 +78,8 @@ internal sealed class MainForm : Form, IMessageFilter
         BackColor = _background;
         ForeColor = _fore;
         Font = new Font("Segoe UI", 9f);
+        AutoScaleMode = AutoScaleMode.None;   // 位置由 S() 手动按 DPI 计算，不能再让 WinForms 缩放一次
+        AutoScaleDimensions = new SizeF(96f, 96f);
         DoubleBuffered = true;
 
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 800);
@@ -738,7 +740,7 @@ internal sealed class MainForm : Form, IMessageFilter
                 Location = _ring.Location,
                 Size = _ring.Size,
                 TextAlign = ContentAlignment.MiddleCenter,
-                Font = new Font("Segoe UI", 30f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 32f, FontStyle.Bold),
                 ForeColor = fore,
                 BackColor = Color.Transparent,
                 Visible = false,
