@@ -14,7 +14,7 @@ internal interface IMainFormHost
 }
 
 /// <summary>左键点托盘图标打开的设置窗口：左侧功能栏 + 右侧内容页。</summary>
-internal sealed class MainForm : Form
+internal sealed class MainForm : Form, IMessageFilter
 {
     private readonly IMainFormHost _app;
     private readonly bool _light;
@@ -68,13 +68,18 @@ internal sealed class MainForm : Form
         _secondary = _light ? Color.FromArgb(108, 108, 116) : Color.FromArgb(152, 152, 160);
 
         Text = "LogiBatteryTray";
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MaximizeBox = true;
+        MinimumSize = new Size((int)S(700), (int)S(460));
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = _background;
         ForeColor = _fore;
         Font = new Font("Segoe UI", 9f);
-        ClientSize = new Size((int)S(820), (int)S(600));
+        // 屏幕放不下时自动缩小，剩下的靠滚动条
+        var workingArea = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 800);
+        int windowWidth = Math.Min((int)S(820), workingArea.Width - (int)S(40));
+        int windowHeight = Math.Min((int)S(600), workingArea.Height - (int)S(60));
+        ClientSize = new Size(windowWidth, windowHeight);
         DoubleBuffered = true;
 
         // ---------- 左侧功能栏 ----------
@@ -121,6 +126,8 @@ internal sealed class MainForm : Form
         ShowPage(0);
         LoadFromSettings();
         UpdateView();
+
+        Application.AddMessageFilter(this);
     }
 
     private float S(float value) => value * DeviceDpi / 96f;
@@ -137,6 +144,7 @@ internal sealed class MainForm : Form
         Size = new Size((int)S(608), (int)S(600)),
         BackColor = _background,
         Visible = false,
+        AutoScroll = true,
     };
 
     // ---------- 设备页 ----------
@@ -189,7 +197,7 @@ internal sealed class MainForm : Form
         log.Click += (_, _) => _app.OpenLogFolderPublic();
 
         // 未连接时的整页提示
-        _emptyState = new Panel { Location = P(0, 0), Size = page.Size, BackColor = Color.Transparent, Visible = false };
+        _emptyState = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Visible = false };
         page.Controls.Add(_emptyState);
 
         _emptyState.Controls.Add(new Label
@@ -558,8 +566,44 @@ internal sealed class MainForm : Form
         _updatedLabel.Top = (int)y;
     }
 
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+
+        if (_sidebar == null || _pages == null) return;
+
+        int sidebarWidth = (int)S(212);
+        _sidebar.Height = ClientSize.Height;
+
+        foreach (var page in _pages)
+        {
+            page.Location = new Point(sidebarWidth, 0);
+            page.Size = new Size(ClientSize.Width - sidebarWidth, ClientSize.Height);
+        }
+    }
+
+    /// <summary>把滚轮接管到当前可见页面。</summary>
+    public bool PreFilterMessage(ref Message m)
+    {
+        const int WmMouseWheel = 0x020A;
+        if (m.Msg != WmMouseWheel || !Visible) return false;
+        if (!ClientRectangle.Contains(PointToClient(Cursor.Position))) return false;
+
+        var page = _pages.FirstOrDefault(p => p.Visible);
+        if (page == null || !page.VerticalScroll.Visible) return false;
+
+        long wParam = m.WParam.ToInt64();
+        int delta = (short)((wParam >> 16) & 0xFFFF);
+        if (delta == 0) return false;
+
+        int offset = -page.AutoScrollPosition.Y + (delta > 0 ? -80 : 80);
+        offset = Math.Max(0, offset);
+        page.AutoScrollPosition = new Point(0, offset);
+        return true;
+    }
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        Application.RemoveMessageFilter(this);
         _ringBox.Image?.Dispose();
         base.OnFormClosed(e);
     }
