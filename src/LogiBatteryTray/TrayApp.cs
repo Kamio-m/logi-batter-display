@@ -33,7 +33,7 @@ internal static class Theme
 }
 
 /// <summary>托盘程序主体：图标、菜单、定时刷新。</summary>
-internal sealed class TrayApp : ApplicationContext
+internal sealed class TrayApp : ApplicationContext, IMainFormHost
 {
     private readonly BatteryService _service = new();
     private readonly AppSettings _settings;
@@ -55,7 +55,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly HashSet<ToolStripDropDown> _styledDropdowns = new();
     private readonly MouseActivityWatcher _mouseWatcher;
 
-    private DetailsForm _details;
+    private MainForm _mainForm;
     private BatteryWidget _widget;
     private bool _refreshing;
     private DateTime _lastLowWarning = DateTime.MinValue;
@@ -329,16 +329,37 @@ internal sealed class TrayApp : ApplicationContext
 
     private void ShowDetails()
     {
-        if (_details != null && !_details.IsDisposed)
+        if (_mainForm != null && !_mainForm.IsDisposed)
         {
-            _details.Close();
-            _details = null;
+            _mainForm.Activate();
             return;
         }
 
-        _details = new DetailsForm(_service, RefreshAsync);
-        _details.FormClosed += (_, _) => _details = null;
-        _details.ShowNearTray();
+        _mainForm = new MainForm(this);
+        _mainForm.FormClosed += (_, _) => _mainForm = null;
+        _mainForm.Show();
+        _mainForm.UpdateView();
+    }
+
+    public AppSettings Settings => _settings;
+    public BatteryService Service => _service;
+
+    public void RefreshNow() => RefreshAsync();
+    public void OpenLogFolderPublic() => OpenLogFolder();
+    public void ExitAppPublic() => ExitApp();
+
+    public void ApplySettingsFromWindow()
+    {
+        _settings.Save();
+        IconFactory.Shape = (IconShape)_settings.IconShapeMode;
+        _service.PoweredOffAfterSeconds = _settings.OfflineAsOffSeconds;
+        UpdateMenuState();
+
+        var device = _service.Primary;
+        UpdateIcon(device?.Battery, device?.Online == true,
+            device?.Battery?.Percent is int percent ? $"{percent}%" : "--");
+        _widget?.RefreshView();
+        _mainForm?.UpdateView();
     }
 
     private void ShowWidget()
