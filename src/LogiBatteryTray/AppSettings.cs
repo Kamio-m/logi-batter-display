@@ -9,7 +9,10 @@ internal sealed class AppSettings
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "LogiBatteryTray";
 
-    public int IntervalSeconds { get; set; } = 300;
+    public int IntervalSeconds { get; set; } = 5;
+
+    /// <summary>配置版本，用于迁移旧设置。</summary>
+    public int SettingsVersion { get; set; }
     public bool ShowPercentInIcon { get; set; }
     public bool Autostart { get; set; }
     public bool LowBatteryNotify { get; set; } = true;
@@ -50,6 +53,14 @@ internal sealed class AppSettings
                 string json = File.ReadAllText(AppPaths.SettingsFile);
                 var loaded = JsonSerializer.Deserialize<AppSettings>(json);
                 if (loaded != null) settings = loaded;
+
+                // 旧版本默认 5 分钟刷新，升级后改成实时（5 秒）
+                if (settings.SettingsVersion < 2)
+                {
+                    settings.IntervalSeconds = 5;
+                    settings.SettingsVersion = 2;
+                    try { settings.Save(); } catch { }
+                }
             }
         }
         catch (Exception ex)
@@ -57,7 +68,7 @@ internal sealed class AppSettings
             settings.LoadError = ex.Message;
         }
 
-        settings.IntervalSeconds = Math.Clamp(settings.IntervalSeconds, 60, 3600);
+        settings.IntervalSeconds = Math.Clamp(settings.IntervalSeconds, 5, 3600);
         return settings;
     }
 

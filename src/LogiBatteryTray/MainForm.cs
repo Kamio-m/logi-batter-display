@@ -46,8 +46,8 @@ internal sealed class MainForm : Form
 
     private bool _loading;
 
-    private static readonly int[] IntervalValues = { 60, 300, 900, 1800, 3600 };
-    private static readonly string[] IntervalTexts = { "1 分钟", "5 分钟", "15 分钟", "30 分钟", "1 小时" };
+    private static readonly int[] IntervalValues = { 5, 10, 30, 60, 300 };
+    private static readonly string[] IntervalTexts = { "5 秒（实时）", "10 秒", "30 秒", "1 分钟", "5 分钟" };
     private static readonly int[] ShapeValues = { 0, 1 };
     private static readonly string[] ShapeTexts = { "圆环", "电池图标" };
     private static readonly int[] OfflineValues = { 60, 120, 300, 600 };
