@@ -314,11 +314,12 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         var root = new ToolStripMenuItem("刷新间隔");
         var options = new (int Seconds, string Text)[]
         {
-            (5, "5 秒（实时）"),
+            (1, "1 秒（实时）"),
+            (2, "2 秒"),
+            (5, "5 秒"),
             (10, "10 秒"),
             (30, "30 秒"),
             (60, "1 分钟"),
-            (300, "5 分钟"),
         };
 
         foreach (var option in options)
@@ -396,15 +397,15 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     {
         // 没找到设备或设备离线时加快重试，避免拔插接收器/插线后长时间不更新
         _timer.Interval = _service.Primary == null || !_service.Primary.Online
-            ? 15_000
-            : Math.Max(5, _settings.IntervalSeconds) * 1000;
+            ? 10_000
+            : Math.Max(1, _settings.IntervalSeconds) * 1000;
         RefreshAsync();
     }
 
     private void OnMouseActivity()
     {
         // 已连接时响应快一些；还没找到设备时降低扫描频率，避免频繁超时探测
-        int seconds = _service.Primary == null ? 15 : 5;
+        int seconds = _service.Primary == null ? 10 : 2;
         if (DateTime.Now - _lastActivityRefresh < TimeSpan.FromSeconds(seconds)) return;
         _lastActivityRefresh = DateTime.Now;
         RefreshAsync();
@@ -590,7 +591,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     {
         _settings.IntervalSeconds = seconds;
         _settings.Save();
-        _timer.Interval = Math.Max(5, seconds) * 1000;
+        _timer.Interval = Math.Max(1, seconds) * 1000;
         UpdateMenuState();
         RefreshAsync();
     }

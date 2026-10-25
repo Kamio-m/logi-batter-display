@@ -31,6 +31,9 @@ public sealed class BatteryService
     public LogiDevice Primary => _devices.FirstOrDefault(d => d.Online) ?? _devices.FirstOrDefault();
     public DateTime? LastUpdated { get; private set; }
 
+    /// <summary>是否检测到罗技接收器（HID 接口）。拔掉接收器时为 false。</summary>
+    public bool ReceiverConnected { get; private set; }
+
     /// <summary>充电速率估算（百分比/小时），非充电时为 null。</summary>
     public double? ChargeRatePerHour { get; private set; }
 
@@ -50,7 +53,7 @@ public sealed class BatteryService
 
             if (_devices.Count == 0)
             {
-                Problem = "未检测到鼠标，移动一下鼠标即可连接";
+                Problem = ReceiverConnected ? "未检测到鼠标，移动一下鼠标即可连接" : "请连接设备";
                 return false;
             }
 
@@ -102,9 +105,9 @@ public sealed class BatteryService
                 {
                     // 扫不到（充电/休眠中）：保留上次记录，继续显示“休眠 · 上次 x%”
                     _devices.AddRange(previous);
-                    Problem = previous.Count == 0
-                        ? "未检测到鼠标（请确认接收器插好或数据线连接正常）"
-                        : "鼠标休眠中，移动鼠标即可刷新";
+                    Problem = !ReceiverConnected
+                        ? "请连接设备"
+                        : previous.Count == 0 ? "未检测到鼠标" : "鼠标休眠中，移动鼠标即可刷新";
                     _failures++;
                     return false;
                 }
@@ -286,6 +289,8 @@ public sealed class BatteryService
                 try { hid.Dispose(); } catch { }
             }
         }
+
+        ReceiverConnected = candidates.Count > 0;
 
         _devices.Clear();
         _devices.AddRange(found);
