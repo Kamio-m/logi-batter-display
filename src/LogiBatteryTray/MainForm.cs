@@ -38,6 +38,9 @@ internal sealed class MainForm : Form, IMessageFilter
     private ValueButton _intervalButton;
     private ValueButton _offlineButton;
     private ValueButton _deviceButton;
+    private ValueButton _themeButton;
+    private ValueButton _opacityButton;
+    private ValueButton _cornerButton;
     private readonly List<(string Key, string Label)> _deviceOptions = new();
     private int _deviceIndex;
 
@@ -55,13 +58,24 @@ internal sealed class MainForm : Form, IMessageFilter
     private static readonly string[] IntervalTexts = { "1 秒（实时）", "2 秒", "5 秒", "10 秒", "30 秒", "1 分钟" };
     private static readonly int[] ShapeValues = { 0, 1, 2 };
     private static readonly string[] ShapeTexts = { "圆环", "电池图标", "百分比" };
+    private static readonly int[] ThemeValues = { 0, 1, 2 };
+    private static readonly string[] ThemeTexts = { "跟随系统", "深色", "浅色" };
+    private static readonly int[] OpacityValues = { 100, 95, 90, 85 };
+    private static readonly string[] OpacityTexts = { "100%", "95%", "90%", "85%" };
+    private static readonly int[] CornerValues = { 8, 12, 16 };
+    private static readonly string[] CornerTexts = { "小", "中", "大" };
     private static readonly int[] OfflineValues = { 60, 120, 300, 600 };
     private static readonly string[] OfflineTexts = { "1 分钟", "2 分钟", "5 分钟", "10 分钟" };
 
     public MainForm(IMainFormHost app)
     {
         _app = app;
-        _light = Theme.IsLightTaskbar();
+        _light = app.Settings.ThemeMode switch
+        {
+            1 => false,
+            2 => true,
+            _ => Theme.IsLightTaskbar(),
+        };
 
         _background = _light ? Color.FromArgb(246, 247, 250) : Color.FromArgb(26, 26, 29);
         _sidebarColor = _light ? Color.FromArgb(252, 252, 254) : Color.FromArgb(33, 33, 37);
@@ -307,6 +321,14 @@ internal sealed class MainForm : Form, IMessageFilter
 
         y += appearance.Height + S(16);
 
+        var menuCard = AddCard(page.Content, "右键菜单", 3, y);
+        float menuRow = S(46);
+        menuRow = AddValueRow(menuCard, menuRow, "主题", out _themeButton, "跟随系统");
+        menuRow = AddValueRow(menuCard, menuRow, "不透明度", out _opacityButton, "100%");
+        AddValueRow(menuCard, menuRow, "圆角", out _cornerButton, "中");
+
+        y += menuCard.Height + S(16);
+
         var behavior = AddCard(page.Content, "行为", 4, y);
         row = S(46);
         row = AddValueRow(behavior, row, "刷新间隔", out _intervalButton, "2 秒");
@@ -315,6 +337,10 @@ internal sealed class MainForm : Form, IMessageFilter
         AddToggleRow(behavior, row, "电量低于 20% 时通知", out _notifyToggle);
 
         _deviceButton.Click += (_, _) => CycleDevice();
+
+        _themeButton.Click += (_, _) => Cycle(_themeButton, ThemeValues, ThemeTexts, v => _app.Settings.ThemeMode = v);
+        _opacityButton.Click += (_, _) => Cycle(_opacityButton, OpacityValues, OpacityTexts, v => _app.Settings.MenuOpacity = v);
+        _cornerButton.Click += (_, _) => Cycle(_cornerButton, CornerValues, CornerTexts, v => _app.Settings.MenuCorner = v);
 
         _autostartToggle.CheckedChanged += (_, _) => OnSettingChanged();
         _notifyToggle.CheckedChanged += (_, _) => OnSettingChanged();
@@ -592,6 +618,9 @@ internal sealed class MainForm : Form, IMessageFilter
         _intervalButton.Text = IntervalTexts[IndexOr(IntervalValues, settings.IntervalSeconds, 1)];
         _shapeButton.Text = ShapeTexts[IndexOr(ShapeValues, settings.IconShapeMode, 0)];
         _offlineButton.Text = OfflineTexts[IndexOr(OfflineValues, settings.OfflineAsOffSeconds, 1)];
+        _themeButton.Text = ThemeTexts[IndexOr(ThemeValues, settings.ThemeMode, 0)];
+        _opacityButton.Text = OpacityTexts[IndexOr(OpacityValues, settings.MenuOpacity, 0)];
+        _cornerButton.Text = CornerTexts[IndexOr(CornerValues, settings.MenuCorner, 1)];
 
         _loading = false;
     }
@@ -695,6 +724,9 @@ internal sealed class MainForm : Form, IMessageFilter
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         Application.RemoveMessageFilter(this);
+
+        // 现在是“窗口为主”，关掉窗口就退出程序
+        _app.ExitAppPublic();
         base.OnFormClosed(e);
     }
 
