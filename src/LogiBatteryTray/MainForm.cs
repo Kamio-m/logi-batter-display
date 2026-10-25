@@ -90,6 +90,7 @@ internal sealed class MainForm : Form, IMessageFilter
             BackColor = _sidebarColor,
         };
         _sidebar.Paint += PaintSidebar;
+        _sidebar.Resize += (_, _) => _sidebar.Invalidate();
         Controls.Add(_sidebar);
 
         float navTop = S(104);
@@ -156,14 +157,8 @@ internal sealed class MainForm : Form, IMessageFilter
         float y = PlaceTitle(page.Content, "设备", "查看当前连接的罗技鼠标");
         y += S(10);
 
-        var card = new Panel
-        {
-            Location = P(28, y),
-            Size = new Size(CardWidth(page), (int)S(216)),
-            BackColor = Color.Transparent,
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-        };
-        card.Paint += (_, e) => PaintCard(e, card, S(14));
+        var card = NewCard(CardWidth(page), (int)S(216));
+        card.Location = P(28, y);
         page.Content.Controls.Add(card);
 
         _ringBox = new PictureBox
@@ -263,14 +258,8 @@ internal sealed class MainForm : Form, IMessageFilter
         float y = PlaceTitle(page.Content, "关于", "LogiBatteryTray");
         y += S(10);
 
-        var card = new Panel
-        {
-            Location = P(28, y),
-            Size = new Size(CardWidth(page), (int)S(170)),
-            BackColor = Color.Transparent,
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-        };
-        card.Paint += (_, e) => PaintCard(e, card, S(14));
+        var card = NewCard(CardWidth(page), (int)S(170));
+        card.Location = P(28, y);
         page.Content.Controls.Add(card);
 
         float cy = S(26);
@@ -294,20 +283,23 @@ internal sealed class MainForm : Form, IMessageFilter
         return page;
     }
 
+    private CardPanel NewCard(int width, int height) => new()
+    {
+        Size = new Size(width, height),
+        Radius = S(14),
+        Surface = _cardColor,
+        Outline = _border,
+        Background = _background,
+        Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+    };
     private int CardWidth(ScrollHost page) => Math.Max((int)S(420), page.Content.Width - (int)S(56));
 
     // ---------- 卡片与行 ----------
     private Panel AddCard(Control parent, string title, int rows, float y)
     {
         int height = (int)S(46 + rows * 52 + 8);
-        var card = new Panel
-        {
-            Location = P(28, y),
-            Size = new Size(Math.Max((int)S(420), parent.Width - (int)S(56)), height),
-            BackColor = Color.Transparent,
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-        };
-        card.Paint += (_, e) => PaintCard(e, card, S(14));
+        var card = NewCard(Math.Max((int)S(420), parent.Width - (int)S(56)), height);
+        card.Location = P(28, y);
         parent.Controls.Add(card);
 
         card.Controls.Add(new Label
