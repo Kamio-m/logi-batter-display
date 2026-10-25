@@ -67,7 +67,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private DateTime _lastActivityRefresh = DateTime.MinValue;
     private string _lastState = "";
 
-    public TrayApp()
+    public TrayApp(bool showWindow = false)
     {
         _settings = AppSettings.Load();
         if (!string.IsNullOrEmpty(_settings.LoadError)) Log.Write("读取设置失败: " + _settings.LoadError);
@@ -173,6 +173,8 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
         UpdateMenuState();
         RefreshAsync();
+
+        if (showWindow) ShowDetails();
     }
 
     private ToolStripMenuItem BuildShapeMenu()
@@ -453,6 +455,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     public void ApplySettingsFromWindow()
     {
         _settings.Save();
+        ApplyMenuStyle();
         IconFactory.Shape = (IconShape)_settings.IconShapeMode;
         _service.PoweredOffAfterSeconds = _settings.OfflineAsOffSeconds;
         UpdateMenuState();

@@ -63,7 +63,7 @@ internal static class Program
 
         try
         {
-            Application.Run(new TrayApp());
+            Application.Run(new TrayApp(!Environment.GetCommandLineArgs().Contains("--silent")));
         }
         catch (Exception ex)
         {
