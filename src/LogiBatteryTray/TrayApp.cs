@@ -218,7 +218,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private ToolStripMenuItem BuildOfflineMenu()
     {
         var root = new ToolStripMenuItem("关机判定");
-        foreach (var option in new (int Seconds, string Text)[] { (30, "30 秒"), (60, "1 分钟"), (120, "2 分钟"), (300, "5 分钟"), (600, "10 分钟") })
+        foreach (var option in new (int Seconds, string Text)[] { (0, "立即（无响应即停用）"), (30, "30 秒"), (60, "1 分钟"), (120, "2 分钟"), (300, "5 分钟"), (600, "10 分钟") })
         {
             int seconds = option.Seconds;
             var item = new ToolStripMenuItem(option.Text, null, (_, _) =>
