@@ -163,3 +163,209 @@ internal sealed class ValueButton : Control
         return path;
     }
 }
+
+/// <summary>可滚动页面：内容在 Content 里，右侧是自绘的细滚动条。</summary>
+internal sealed class ScrollHost : Panel
+{
+    private readonly SlimScrollBar _bar;
+    private int _offset;
+    private bool _layingOut;
+
+    public ScrollHost(Color background)
+    {
+        BackColor = background;
+        DoubleBuffered = true;
+
+        Content = new Panel { BackColor = Color.Transparent, Location = new Point(0, 0) };
+        Content.SizeChanged += (_, _) => { if (!_layingOut) Invalidate(); };
+        Controls.Add(Content);
+
+        _bar = new SlimScrollBar();
+        _bar.ValueChanged += (_, _) => SetOffset(_bar.Value, fromBar: true);
+        Controls.Add(_bar);
+    }
+
+    public Panel Content { get; }
+
+    public void ScrollBy(int delta) => SetOffset(_offset + delta, fromBar: false);
+
+    public int ScrollOffset => _offset;
+
+    private void SetOffset(int value, bool fromBar)
+    {
+        int max = Math.Max(0, Content.Height - Height);
+        value = Math.Clamp(value, 0, max);
+        if (value == _offset && !fromBar) return;
+
+        _offset = value;
+        Content.Top = -value;
+
+        if (!fromBar) _bar.Value = value;
+    }
+
+    protected override void OnLayout(LayoutEventArgs e)
+    {
+        base.OnLayout(e);
+        if (_layingOut || Content == null || _bar == null) return;
+
+        _layingOut = true;
+        try
+        {
+            int barSpace = (int)(14 * DeviceDpi / 96f);
+            Content.Width = Math.Max(0, Width - barSpace);
+
+            int bottom = 0;
+            foreach (Control child in Content.Controls)
+                bottom = Math.Max(bottom, child.Bottom);
+
+            Content.Height = Math.Max(Height, bottom + (int)(24 * DeviceDpi / 96f));
+
+            bool needed = Content.Height > Height;
+            _bar.Visible = needed;
+            _bar.Bounds = new Rectangle(
+                Width - (int)(11 * DeviceDpi / 96f),
+                (int)(6 * DeviceDpi / 96f),
+                (int)(7 * DeviceDpi / 96f),
+                Height - (int)(12 * DeviceDpi / 96f));
+
+            _bar.Maximum = Content.Height;
+            _bar.Viewport = Height;
+            SetOffset(_offset, fromBar: false);
+        }
+        finally
+        {
+            _layingOut = false;
+        }
+    }
+}
+
+/// <summary>细长的自绘滚动条。</summary>
+internal sealed class SlimScrollBar : Control
+{
+    private int _maximum;
+    private int _viewport;
+    private int _value;
+    private bool _dragging;
+    private int _dragStartY;
+    private int _dragStartValue;
+    private bool _hover;
+
+    public SlimScrollBar()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int Maximum
+    {
+        get => _maximum;
+        set { _maximum = Math.Max(0, value); Invalidate(); }
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int Viewport
+    {
+        get => _viewport;
+        set { _viewport = Math.Max(1, value); Invalidate(); }
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int Value
+    {
+        get => _value;
+        set
+        {
+            int clamped = Math.Clamp(value, 0, Math.Max(0, _maximum - _viewport));
+            if (clamped == _value) return;
+            _value = clamped;
+            Invalidate();
+            ValueChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public event EventHandler ValueChanged;
+
+    private int ThumbHeight => Math.Max((int)(28 * DeviceDpi / 96f),
+        (int)((float)Height * _viewport / Math.Max(1, _maximum)));
+
+    private int ThumbTop => Math.Max(0, (int)((float)(Height - ThumbHeight) * _value / Math.Max(1, _maximum - _viewport)));
+
+    protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        if (e.Button != MouseButtons.Left) return;
+
+        int top = ThumbTop;
+        if (e.Y >= top && e.Y <= top + ThumbHeight)
+        {
+            _dragging = true;
+            _dragStartY = e.Y;
+            _dragStartValue = _value;
+            Capture = true;
+        }
+        else
+        {
+            // 点击空白处：上/下翻一屏
+            Value = e.Y < top ? _value - _viewport : _value + _viewport;
+        }
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (!_dragging) return;
+
+        int range = Math.Max(1, _maximum - _viewport);
+        int travel = Math.Max(1, Height - ThumbHeight);
+        int delta = e.Y - _dragStartY;
+        Value = _dragStartValue + (int)((float)delta / travel * range);
+    }
+
+    protected override void OnMouseUp(MouseEventArgs e)
+    {
+        base.OnMouseUp(e);
+        if (!_dragging) return;
+        _dragging = false;
+        Capture = false;
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        int alpha = _hover || _dragging ? 140 : 90;
+        using (var brush = new SolidBrush(Color.FromArgb(alpha, 140, 140, 150)))
+        {
+            var thumb = new RectangleF(0, ThumbTop, Width, ThumbHeight);
+            using var path = RoundedPath(thumb, Width / 2f);
+            g.FillPath(brush, path);
+        }
+    }
+
+    private static GraphicsPath RoundedPath(RectangleF rect, float radius)
+    {
+        var path = new GraphicsPath();
+        float diameter = Math.Min(radius * 2f, Math.Min(rect.Width, rect.Height));
+        if (diameter <= 1f) { path.AddRectangle(rect); return path; }
+
+        var arc = new RectangleF(rect.X, rect.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = rect.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = rect.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = rect.X;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+}
