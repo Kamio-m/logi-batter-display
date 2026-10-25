@@ -32,7 +32,7 @@ internal sealed class DeviceWatcher : NativeWindow, IDisposable
     private IntPtr _registration;
     private bool _disposed;
 
-    public event Action Changed;
+    public event Action<string> Changed;
 
     public DeviceWatcher()
     {
@@ -48,13 +48,42 @@ internal sealed class DeviceWatcher : NativeWindow, IDisposable
         _registration = RegisterDeviceNotification(Handle, ref filter, 0);
     }
 
+    /// <summary>从 DEV_BROADCAST_DEVICEINTERFACE 里取出设备接口路径（含 vid/pid）。</summary>
+    private static string ReadDeviceInterfaceName(IntPtr lParam)
+    {
+        if (lParam == IntPtr.Zero) return string.Empty;
+
+        try
+        {
+            int size = Marshal.ReadInt32(lParam);
+            int type = Marshal.ReadInt32(lParam, 4);
+            if (type != DbtDevTypDeviceInterface) return string.Empty;
+
+            const int nameOffset = 28; // DWORD size + DWORD type + DWORD reserved + GUID
+            int chars = Math.Max(0, (size - nameOffset) / 2);
+            var builder = new System.Text.StringBuilder(chars);
+
+            for (int i = 0; i < chars; i++)
+            {
+                char c = (char)Marshal.ReadInt16(lParam, nameOffset + i * 2);
+                if (c == '\0') break;
+                builder.Append(c);
+            }
+
+            return builder.ToString();
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
     protected override void WndProc(ref Message m)
     {
         if (m.Msg == WmDeviceChange)
         {
             int kind = m.WParam.ToInt32();
             if (kind is DbtDeviceArrival or DbtDeviceRemoveComplete)
-                Changed?.Invoke();
+                Changed?.Invoke(ReadDeviceInterfaceName(m.LParam));
         }
 
         base.WndProc(ref m);

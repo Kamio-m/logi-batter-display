@@ -56,6 +56,9 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private readonly MouseActivityWatcher _mouseWatcher;
     private readonly DeviceWatcher _deviceWatcher;
     private DateTime _lastDeviceEvent = DateTime.MinValue;
+    private readonly System.Windows.Forms.Timer _burstTimer;
+    private int _burstRemaining;
+    private bool _pendingRefresh;
 
     private MainForm _mainForm;
     private BatteryWidget _widget;
@@ -146,6 +149,13 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             ShowWidget();
         };
         trayCheck.Start();
+
+        _burstTimer = new System.Windows.Forms.Timer { Interval = 500 };
+        _burstTimer.Tick += (_, _) =>
+        {
+            RefreshAsync();
+            if (--_burstRemaining <= 0) _burstTimer.Stop();
+        };
 
         _timer = new System.Windows.Forms.Timer { Interval = 600 };
         _timer.Tick += OnTimerTick;
@@ -417,12 +427,20 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         RefreshAsync();
     }
 
-    private void OnDeviceChanged()
+    private void OnDeviceChanged(string devicePath)
     {
         // 插拔会连续来多条消息，节流一下
         if (DateTime.Now - _lastDeviceEvent < TimeSpan.FromMilliseconds(250)) return;
         _lastDeviceEvent = DateTime.Now;
+
+        // 只有罗技设备的插拔才清空状态，避免插个键盘也闪一下
+        bool logitech = devicePath.IndexOf("vid_046d", StringComparison.OrdinalIgnoreCase) >= 0;
+        if (logitech) _service.Reset();
+
+        // 接收器刚插上时 HID 枚举需要一点时间，连续刷新几次
         RefreshAsync();
+        _burstRemaining = 4;
+        _burstTimer.Start();
     }
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
     {
@@ -431,7 +449,11 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
     private void RefreshAsync()
     {
-        if (_refreshing) return;
+        if (_refreshing)
+        {
+            _pendingRefresh = true;
+            return;
+        }
         _refreshing = true;
 
         Task.Run(() =>
@@ -443,6 +465,12 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
                 {
                     _refreshing = false;
                     Apply(ok);
+
+                    if (_pendingRefresh)
+                    {
+                        _pendingRefresh = false;
+                        RefreshAsync();
+                    }
                 }));
             }
             catch
