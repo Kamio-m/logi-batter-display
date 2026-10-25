@@ -31,7 +31,7 @@ internal sealed class AppSettings
     public int IconShapeMode { get; set; }
 
     /// <summary>无响应多少秒后判定为“停用”。</summary>
-    public int OfflineAsOffSeconds { get; set; } = 120;
+    public int OfflineAsOffSeconds { get; set; } = 0;
 
     /// <summary>菜单不透明度（40-100）。</summary>
     public int MenuOpacity { get; set; } = 100;
