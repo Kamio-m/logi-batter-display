@@ -68,6 +68,8 @@ internal static class IconFactory
             DrawRing(graphics, bounds, battery, lightTaskbar, offline);
         else if (Shape == IconShape.Percent)
             DrawPercent(graphics, bounds, battery, lightTaskbar, offline);
+        else if (Shape == IconShape.Battery && size >= 48)
+            DrawVectorBattery(graphics, bounds, battery, lightTaskbar, offline);
         else if (Style == BatteryIconStyle.FilledCapsule)
             DrawCapsule(graphics, bounds, battery, offline);
         else
@@ -401,6 +403,65 @@ internal static class IconFactory
         }
     }
 
+    /// <summary>大尺寸时用矢量画电池（雪碧图放大会糊）。</summary>
+    private static void DrawVectorBattery(Graphics g, RectangleF rect, BatteryReading battery,
+        bool lightTaskbar, bool offline)
+    {
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+        bool charging = battery?.Charging == true || battery?.Full == true;
+        bool low = battery?.Percent is int lowValue && lowValue < LowBatteryThreshold && !charging;
+
+        Color outline = offline
+            ? Color.FromArgb(205, 140, 140, 146)
+            : lightTaskbar ? Color.FromArgb(255, 24, 24, 28) : Color.FromArgb(255, 250, 250, 252);
+
+        Color fill = offline
+            ? Color.FromArgb(150, 140, 140, 146)
+            : charging ? Color.FromArgb(255, 52, 199, 110)
+            : low ? Color.FromArgb(255, 240, 190, 20)
+            : outline;
+
+        float size = Math.Min(rect.Width, rect.Height);
+        float stroke = Math.Max(2f, size * 0.055f);
+        float nubWidth = Math.Max(3f, size * 0.075f);
+        float bodyWidth = rect.Width - nubWidth - stroke * 1.2f;
+        float bodyHeight = size * 0.54f;
+        float left = rect.X + stroke / 2f;
+        float top = rect.Y + (rect.Height - bodyHeight) / 2f;
+
+        var body = new RectangleF(left, top, bodyWidth, bodyHeight);
+
+        using (var path = Rounded(body, size * 0.13f))
+        using (var pen = new Pen(outline, stroke) { LineJoin = LineJoin.Round })
+        {
+            g.DrawPath(pen, path);
+        }
+
+        var nub = new RectangleF(body.Right - stroke * 0.4f, body.Y + bodyHeight * 0.30f, nubWidth, bodyHeight * 0.36f);
+        using (var brush = new SolidBrush(outline))
+        using (var nubPath = Rounded(nub, size * 0.03f))
+        {
+            g.FillPath(brush, nubPath);
+        }
+
+        if (offline || battery?.Percent is not int percent) return;
+
+        float pad = stroke * 1.1f;
+        float innerWidth = body.Width - pad * 2f;
+        float innerHeight = body.Height - pad * 2f;
+        float width = innerWidth * Math.Clamp(percent / 100f, 0f, 1f);
+
+        if (width < 1f) return;
+
+        var fillRect = new RectangleF(body.X + pad, body.Y + pad, Math.Min(width, innerWidth), innerHeight);
+        using (var brush = new SolidBrush(fill))
+        using (var path = Rounded(fillRect, size * 0.06f))
+        {
+            g.FillPath(brush, path);
+        }
+    }
     /// <summary>只画百分比数字（尽量占满图标）。</summary>
     private static void DrawPercent(Graphics g, RectangleF rect, BatteryReading battery, bool lightTaskbar, bool offline)
     {
@@ -458,6 +519,12 @@ internal static class IconFactory
         if (Shape == IconShape.Percent)
         {
             DrawPercent(g, rect, battery, lightTaskbar, offline);
+            return;
+        }
+
+        if (Shape == IconShape.Battery && rect.Width >= 48)
+        {
+            DrawVectorBattery(g, rect, battery, lightTaskbar, offline);
             return;
         }
 
