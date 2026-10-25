@@ -184,7 +184,7 @@ internal sealed class MainForm : Form, IMessageFilter
         var page = NewPage();
         _devicePage = page;
 
-        float y = PlaceTitle(page.Content, "设备", "查看所有已连接的罗技设备，点卡片可切换托盘显示");
+        float y = PlaceTitle(page.Content, "设备", "点设备卡片可切换图标样式（圆环 / 电池图标 / 百分比）");
         y += S(12);
 
         _deviceList = new Panel
@@ -272,12 +272,11 @@ internal sealed class MainForm : Form, IMessageFilter
             card.SetDevice(device);
             card.Selected = DeviceKeyOf(device) == SelectedKey();
 
-            string key = DeviceKeyOf(device);
-            void Choose(object _, EventArgs __) => ChooseDevice(key);
+            void CycleStyle(object _, EventArgs __) => CycleCardShape();
 
-            card.Click += Choose;
+            card.Click += CycleStyle;
             foreach (Control child in card.Controls)
-                child.Click += Choose;
+                child.Click += CycleStyle;
 
             _deviceList.Controls.Add(card);
             _deviceCards.Add(card);
@@ -299,11 +298,25 @@ internal sealed class MainForm : Form, IMessageFilter
         return key.Length > 0 ? key : DeviceKeyOf(_app.DisplayDevice ?? new LogiDevice { Path = "", Name = "" });
     }
 
-    private void ChooseDevice(string key)
+    /// <summary>点设备卡片循环切换图标样式，所有设备一起变。</summary>
+    private void CycleCardShape()
     {
-        if (string.IsNullOrEmpty(key)) return;
+        int next = IconFactory.Shape switch
+        {
+            IconShape.Ring => 1,
+            IconShape.Battery => 2,
+            _ => 0,
+        };
 
-        _app.Settings.SelectedDeviceKey = key;
+        _app.Settings.IconShapeMode = next;
+        IconFactory.Shape = (IconShape)next;
+
+        if (_shapeButton != null)
+        {
+            _shapeButton.Text = ShapeTexts[IndexOr(ShapeValues, next, 0)];
+            _shapeButton.Invalidate();
+        }
+
         _app.ApplySettingsFromWindow();
         UpdateView();
     }
