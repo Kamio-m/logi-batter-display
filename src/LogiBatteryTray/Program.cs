@@ -517,6 +517,10 @@ internal static class Cli
         var settings = AppSettings.Load();
         IconFactory.Shape = (IconShape)settings.IconShapeMode;
 
+        if (args != null && args.Contains("battery")) IconFactory.Shape = IconShape.Battery;
+        if (args != null && args.Contains("ring")) IconFactory.Shape = IconShape.Ring;
+        if (args != null && args.Contains("percent")) IconFactory.Shape = IconShape.Percent;
+
         var service = new BatteryService();
         if (!(args.Length > 3 && args[3] == "empty"))
             service.AddPreviewDevice("PRO X Wireless", new BatteryReading { Percent = 85 });
