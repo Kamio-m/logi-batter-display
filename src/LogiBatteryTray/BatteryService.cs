@@ -272,6 +272,9 @@ public sealed class BatteryService
 
         return false;
     }
+    /// <summary>仅供预览：设置是否检测到接收器。</summary>
+    internal void SetPreviewConnected(bool connected) => ReceiverConnected = connected;
+
     /// <summary>接收器插拔后清空状态，强制下次刷新重新发现。</summary>
     public void Reset()
     {

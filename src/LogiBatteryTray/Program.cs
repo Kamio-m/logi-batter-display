@@ -525,7 +525,12 @@ internal static class Cli
         if (accentArg != null && int.TryParse(accentArg[6..], out int accentIndex)) settings.AccentIndex = accentIndex;
 
         var service = new BatteryService();
-        if (!(args.Length > 3 && args[3] == "empty"))
+        if (args != null && args.Contains("offline"))
+        {
+            settings.LastDeviceName = "PRO X Wireless";
+            service.SetPreviewConnected(true);
+        }
+        else if (!(args.Length > 3 && args[3] == "empty"))
             service.AddPreviewDevice("PRO X Wireless", new BatteryReading { Percent = 85 });
 
         using var form = new MainForm(new PreviewHost(settings, service));

@@ -703,16 +703,30 @@ internal sealed class MainForm : Form, IMessageFilter
 
         var devices = _app.Service.Devices;
 
-        string signature = string.Join("|", devices.Select(DeviceKeyOf));
+        // 接收器插着但一台设备都没有（鼠标关着）：显示一张“停用”占位卡
+        var shown = devices.ToList();
+        if (shown.Count == 0 && receiverConnected)
+        {
+            shown.Add(new LogiDevice
+            {
+                Name = string.IsNullOrWhiteSpace(_app.Settings.LastDeviceName) ? "罗技设备" : _app.Settings.LastDeviceName,
+                Path = "",
+                DeviceIndex = 0,
+                Online = false,
+                PoweredOff = true,
+            });
+        }
+
+        string signature = string.Join("|", shown.Select(DeviceKeyOf));
         if (signature != _cardsSignature)
         {
             _cardsSignature = signature;
-            RebuildDeviceCards(devices);
+            RebuildDeviceCards(shown);
         }
 
         foreach (var card in _deviceCards)
         {
-            var device = devices.FirstOrDefault(d => DeviceKeyOf(d) == card.Key);
+            var device = shown.FirstOrDefault(d => DeviceKeyOf(d) == card.Key);
             if (device != null) card.SetDevice(device);
             card.Selected = card.Key == SelectedKey();
         }
@@ -919,6 +933,7 @@ internal sealed class MainForm : Form, IMessageFilter
             _status.Text = _online
                 ? _battery!.StatusText
                 : _battery?.Percent != null ? $"{offlineLabel} · 上次 {_battery.Percent}%"
+                : device.PoweredOff ? "停用"
                 : "未连接";
 
             _percent.Text = _battery?.Percent is int percent ? $"{percent}%" : "--";
