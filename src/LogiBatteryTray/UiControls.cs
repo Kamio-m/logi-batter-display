@@ -105,6 +105,7 @@ internal sealed class ValueButton : Control
         Cursor = Cursors.Hand;
         BackColor = Color.Transparent;
         Size = new Size(168, 34);
+        Font = new Font("Segoe UI", 9f);
     }
 
     protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
@@ -125,12 +126,8 @@ internal sealed class ValueButton : Control
                 g.DrawPath(pen, path);
         }
 
-        using (var font = new Font("Segoe UI", 9f))
-        using (var brush = new SolidBrush(_fore))
-        using (var format = new StringFormat { LineAlignment = StringAlignment.Center })
-        {
-            g.DrawString(Text, font, brush, new RectangleF(12, 0, Width - 34, Height), format);
-        }
+        TextRenderer.DrawText(g, Text, Font, new Rectangle(12, 0, Width - 34, Height), _fore,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
 
         using (var chevron = new Pen(Color.FromArgb(150, _fore), 1.4f))
         {
