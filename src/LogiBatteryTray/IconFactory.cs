@@ -11,6 +11,8 @@ public enum IconShape
     Ring,
     /// <summary>系统电池图标。</summary>
     Battery,
+    /// <summary>只显示百分比数字。</summary>
+    Percent,
 }
 
 public enum BatteryIconStyle
@@ -52,7 +54,7 @@ internal static class IconFactory
         return Green;
     }
 
-    public static Icon Create(int size, BatteryReading battery, bool showPercent, bool lightTaskbar, bool offline = false)
+    public static Icon Create(int size, BatteryReading battery, bool lightTaskbar, bool offline = false)
     {
         using var bitmap = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         using var graphics = Graphics.FromImage(bitmap);
@@ -64,10 +66,13 @@ internal static class IconFactory
         var bounds = new RectangleF(0, 0, size, size);
         if (Shape == IconShape.Ring)
             DrawRing(graphics, bounds, battery, lightTaskbar, offline);
+        else if (Shape == IconShape.Percent)
+            DrawPercent(graphics, bounds, battery, lightTaskbar, offline);
         else if (Style == BatteryIconStyle.FilledCapsule)
             DrawCapsule(graphics, bounds, battery, offline);
         else
-            DrawFromSheet(graphics, bounds, battery, lightTaskbar, offline, showPercent);
+            DrawFromSheet(graphics, bounds, battery, lightTaskbar, offline);
+
 
         IntPtr handle = bitmap.GetHicon();
         try
@@ -144,7 +149,7 @@ internal static class IconFactory
     /// 用 Windows 自带电池雪碧图绘制：0-9 帧为 0-100% 电量，10-19 帧为充电（带插头）。
     /// 低于 20% 时只把内胆染黄，描边保持白色。
     /// </summary>
-    private static void DrawFromSheet(Graphics g, RectangleF rect, BatteryReading battery, bool lightTaskbar, bool offline, bool showPercent)
+    private static void DrawFromSheet(Graphics g, RectangleF rect, BatteryReading battery, bool lightTaskbar, bool offline)
     {
         Bitmap sheet = SheetFor(rect.Width);
         if (sheet == null)
@@ -168,22 +173,6 @@ internal static class IconFactory
             batteryRect.X + (batteryRect.Width - dw) / 2f,
             batteryRect.Y + (batteryRect.Height - dh) / 2f,
             dw, dh);
-
-        if (showPercent && battery?.Percent is int shownPercent)
-        {
-            // 百分比模式：电池内部不填充，只把数字画在中间
-            using (var baseAttrs = BuildTint(lightTaskbar, offline))
-                g.DrawImage(sheet, Rectangle.Round(dest), 0 * pitch + src.X, src.Y, src.Width, src.Height, GraphicsUnit.Pixel, baseAttrs);
-
-            var innerRect = new RectangleF(
-                dest.X + dest.Width * 0.12f,
-                dest.Y + dest.Height * 0.26f,
-                dest.Width * 0.76f,
-                dest.Height * 0.48f);
-
-            DrawPercentText(g, innerRect, shownPercent, lightTaskbar, offline);
-            return;
-        }
 
         using (var baseAttrs = BuildTint(lightTaskbar, offline))
             g.DrawImage(sheet, Rectangle.Round(dest), frame * pitch + src.X, src.Y, src.Width, src.Height, GraphicsUnit.Pixel, baseAttrs);
@@ -412,6 +401,44 @@ internal static class IconFactory
         }
     }
 
+    /// <summary>只画百分比数字（尽量占满图标）。</summary>
+    private static void DrawPercent(Graphics g, RectangleF rect, BatteryReading battery, bool lightTaskbar, bool offline)
+    {
+        string text = battery?.Percent is int percent ? percent.ToString() : "--";
+
+        Color color = offline
+            ? Color.FromArgb(200, 140, 140, 146)
+            : battery?.Charging == true ? Color.FromArgb(255, 52, 199, 110)
+            : battery?.Percent is int low && low < LowBatteryThreshold ? Color.FromArgb(255, 240, 190, 20)
+            : lightTaskbar ? Color.FromArgb(255, 24, 24, 28) : Color.FromArgb(255, 252, 252, 255);
+
+        float size = Math.Min(rect.Width, rect.Height) * 0.88f;
+        Font font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
+
+        try
+        {
+            while (size > 4f && g.MeasureString(text, font).Width > rect.Width * 0.96f)
+            {
+                size -= 0.5f;
+                font.Dispose();
+                font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
+            }
+
+            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            using var brush = new SolidBrush(color);
+            using var format = new StringFormat
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center,
+            };
+
+            g.DrawString(text, font, brush, rect, format);
+        }
+        finally
+        {
+            font.Dispose();
+        }
+    }
     /// <summary>小卡里使用：与托盘图标同一套系统雪碧图。</summary>
     public static void DrawAuto(Graphics g, RectangleF rect, BatteryReading battery, bool lightTaskbar, bool offline)
     {
@@ -421,13 +448,19 @@ internal static class IconFactory
             return;
         }
 
+        if (Shape == IconShape.Percent)
+        {
+            DrawPercent(g, rect, battery, lightTaskbar, offline);
+            return;
+        }
+
         if (Style == BatteryIconStyle.FilledCapsule)
         {
             DrawCapsule(g, rect, battery, offline);
             return;
         }
 
-        DrawFromSheet(g, rect, battery, lightTaskbar, offline, false);
+        DrawFromSheet(g, rect, battery, lightTaskbar, offline);
     }
     /// <summary>画电池：outline 为描边色（始终白），fill 为内胆色。</summary>
     public static void DrawBattery(Graphics g, RectangleF rect, int? percent, bool charging,
