@@ -24,6 +24,9 @@ internal sealed class AppSettings
     public int WidgetX { get; set; } = int.MinValue;
     public int WidgetY { get; set; } = int.MinValue;
 
+    /// <summary>主题色序号（见 Theme.Accents）。</summary>
+    public int AccentIndex { get; set; }
+
     /// <summary>图标形状：0=圆环，1=电池。</summary>
     public int IconShapeMode { get; set; }
 

@@ -13,6 +13,7 @@ internal interface IMainFormHost
     void OpenLogFolderPublic();
     void ExitAppPublic();
     void ApplySettingsFromWindow();
+    void ReopenWindow();
 }
 
 /// <summary>左键点托盘图标打开的设置窗口：左侧功能栏 + 右侧可滚动内容页。</summary>
@@ -41,6 +42,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private ValueButton _themeButton;
     private ValueButton _opacityButton;
     private ValueButton _cornerButton;
+    private ValueButton _accentButton;
     private readonly List<(string Key, string Label)> _deviceOptions = new();
     private int _deviceIndex;
 
@@ -50,7 +52,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private readonly Color _border;
     private readonly Color _fore;
     private readonly Color _secondary;
-    private static readonly Color Accent = Color.FromArgb(58, 130, 255);
+    private readonly Color _accent;
 
     private bool _loading;
 
@@ -70,6 +72,7 @@ internal sealed class MainForm : Form, IMessageFilter
     public MainForm(IMainFormHost app)
     {
         _app = app;
+        _accent = Theme.AccentFor(app.Settings.AccentIndex);
         _light = app.Settings.ThemeMode switch
         {
             1 => false,
@@ -117,9 +120,9 @@ internal sealed class MainForm : Form, IMessageFilter
 
         _navs = new[]
         {
-            new NavButton("\uE83F", "设备", _fore, _secondary, Accent) { Location = P(14, navTop) },
-            new NavButton("\uE713", "设置", _fore, _secondary, Accent) { Location = P(14, navTop + 46) },
-            new NavButton("\uE946", "关于", _fore, _secondary, Accent) { Location = P(14, navTop + 92) },
+            new NavButton("\uE83F", "设备", _fore, _secondary, _accent) { Location = P(14, navTop) },
+            new NavButton("\uE713", "设置", _fore, _secondary, _accent) { Location = P(14, navTop + 46) },
+            new NavButton("\uE946", "关于", _fore, _secondary, _accent) { Location = P(14, navTop + 92) },
         };
 
         for (int i = 0; i < _navs.Length; i++)
@@ -257,7 +260,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
         foreach (var device in devices)
         {
-            var card = new DeviceCard(_cardColor, _border, _background, _fore, _secondary, _light)
+            var card = new DeviceCard(_cardColor, _border, _background, _fore, _secondary, _light, _accent)
             {
                 Location = new Point((int)S(28), (int)top),
                 Size = new Size(cardWidth, (int)S(152)),
@@ -315,9 +318,10 @@ internal sealed class MainForm : Form, IMessageFilter
         AddValueRow(tray, S(46), "显示设备", out _deviceButton, "—");
         y += tray.Height + S(16);
 
-        var appearance = AddCard(page.Content, "外观", 1, y);
+        var appearance = AddCard(page.Content, "外观", 2, y);
         float row = S(46);
-        AddValueRow(appearance, row, "图标形状", out _shapeButton, "圆环");
+        row = AddValueRow(appearance, row, "图标形状", out _shapeButton, "圆环");
+        AddValueRow(appearance, row, "主题色", out _accentButton, "蓝色");
 
         y += appearance.Height + S(16);
 
@@ -337,6 +341,8 @@ internal sealed class MainForm : Form, IMessageFilter
         AddToggleRow(behavior, row, "电量低于 20% 时通知", out _notifyToggle);
 
         _deviceButton.Click += (_, _) => CycleDevice();
+
+        _accentButton.Click += (_, _) => CycleAccent();
 
         _themeButton.Click += (_, _) => Cycle(_themeButton, ThemeValues, ThemeTexts, v => _app.Settings.ThemeMode = v);
         _opacityButton.Click += (_, _) => Cycle(_opacityButton, OpacityValues, OpacityTexts, v => _app.Settings.MenuOpacity = v);
@@ -436,7 +442,7 @@ internal sealed class MainForm : Form, IMessageFilter
     {
         AddRowLabel(card, y, label);
 
-        toggle = new ToggleSwitch(Accent, ToggleOff)
+        toggle = new ToggleSwitch(_accent, ToggleOff)
         {
             Size = new Size((int)S(46), (int)S(26)),
             Location = new Point(card.Width - (int)S(46) - (int)S(20), (int)(y + (S(52) - S(26)) / 2)),
@@ -490,7 +496,7 @@ internal sealed class MainForm : Form, IMessageFilter
             Location = P(x, y),
             Size = new Size((int)width, (int)S(34)),
             FlatStyle = FlatStyle.Flat,
-            BackColor = primary ? Color.FromArgb(10, 132, 255) : ButtonBack,
+            BackColor = primary ? _accent : ButtonBack,
             ForeColor = primary ? Color.White : _fore,
         };
         button.FlatAppearance.BorderColor = _border;
@@ -505,9 +511,9 @@ internal sealed class MainForm : Form, IMessageFilter
             e.Graphics.DrawLine(pen, _sidebar.Width - 0.5f, 0, _sidebar.Width - 0.5f, _sidebar.Height);
 
         var logoRect = new RectangleF(S(22), S(24), S(28), S(28));
-        using (var pen = new Pen(Accent, S(3.4f)))
+        using (var pen = new Pen(_accent, S(3.4f)))
             e.Graphics.DrawEllipse(pen, logoRect);
-        using (var brush = new SolidBrush(Accent))
+        using (var brush = new SolidBrush(_accent))
             e.Graphics.FillEllipse(brush, logoRect.X + logoRect.Width / 2 - S(3), logoRect.Y + logoRect.Height / 2 - S(3), S(6), S(6));
 
         using var titleFont = new Font("Segoe UI", 11.5f, FontStyle.Bold);
@@ -546,6 +552,19 @@ internal sealed class MainForm : Form, IMessageFilter
             _navs[i].Selected = i == index;
     }
 
+    private void CycleAccent()
+    {
+        if (_loading) return;
+
+        int next = (_app.Settings.AccentIndex + 1) % Theme.Accents.Length;
+        _app.Settings.AccentIndex = next;
+        _accentButton.Text = Theme.AccentName(next);
+
+        _app.ApplySettingsFromWindow();
+
+        // 界面颜色在构造时就定下来了，重新开一次窗口应用新配色
+        _app.ReopenWindow();
+    }
     private void Cycle(ValueButton button, int[] values, string[] texts, Action<int> apply)
     {
         if (_loading) return;
@@ -621,6 +640,7 @@ internal sealed class MainForm : Form, IMessageFilter
         _themeButton.Text = ThemeTexts[IndexOr(ThemeValues, settings.ThemeMode, 0)];
         _opacityButton.Text = OpacityTexts[IndexOr(OpacityValues, settings.MenuOpacity, 0)];
         _cornerButton.Text = CornerTexts[IndexOr(CornerValues, settings.MenuCorner, 1)];
+        _accentButton.Text = Theme.AccentName(settings.AccentIndex);
 
         _loading = false;
     }
@@ -644,6 +664,11 @@ internal sealed class MainForm : Form, IMessageFilter
         _app.ApplySettingsFromWindow();
         UpdateView();
     }
+
+    /// <summary>重开窗口时不要退出程序。</summary>
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public bool SuppressExitOnClose { get; set; }
 
     public void SelectPage(int index) => ShowPage(index);
 
@@ -725,8 +750,8 @@ internal sealed class MainForm : Form, IMessageFilter
     {
         Application.RemoveMessageFilter(this);
 
-        // 现在是“窗口为主”，关掉窗口就退出程序
-        _app.ExitAppPublic();
+        // 现在是“窗口为主”，关掉窗口就退出程序（换配色重开时除外）
+        if (!SuppressExitOnClose) _app.ExitAppPublic();
         base.OnFormClosed(e);
     }
 
@@ -742,15 +767,16 @@ internal sealed class MainForm : Form, IMessageFilter
         private readonly Label _bigPercent;
         private readonly Color _fore;
         private readonly Color _secondary;
-        private readonly Color _accentColor = Accent;
+        private readonly Color _accentColor;
         private readonly bool _light;
         private BatteryReading _battery;
         private bool _online;
         private bool _selected;
         private bool _percentMode;
 
-        public DeviceCard(Color surface, Color outline, Color background, Color fore, Color secondary, bool light)
+        public DeviceCard(Color surface, Color outline, Color background, Color fore, Color secondary, bool light, Color accent)
         {
+            _accentColor = accent;
             Surface = surface;
             Outline = outline;
             Background = background;
