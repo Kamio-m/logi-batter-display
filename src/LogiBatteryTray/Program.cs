@@ -209,7 +209,7 @@ internal static class Cli
         };
         var sizes = new[] { 16, 24, 32 };
         const int zoom = 6;
-        const int cell = 176;
+        const int cell = 200;
         const int labelWidth = 230;
         const int rowHeight = 150;
 
