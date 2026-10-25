@@ -221,6 +221,14 @@ public sealed class BatteryService
         });
     }
 
+    /// <summary>接收器插拔后清空状态，强制下次刷新重新发现。</summary>
+    public void Reset()
+    {
+        _devices.Clear();
+        ReceiverConnected = false;
+        Problem = null;
+    }
+
     /// <summary>扫描罗技 HID 接口，找出支持电量特性的鼠标。</summary>
     public void Discover()
     {
