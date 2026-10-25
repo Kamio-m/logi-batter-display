@@ -67,8 +67,8 @@ internal sealed class MainForm : Form, IMessageFilter
     private static readonly string[] OpacityTexts = { "100%", "95%", "90%", "85%" };
     private static readonly int[] CornerValues = { 8, 12, 16 };
     private static readonly string[] CornerTexts = { "小", "中", "大" };
-    private static readonly int[] OfflineValues = { 30, 60, 120, 300, 600 };
-    private static readonly string[] OfflineTexts = { "30 秒", "1 分钟", "2 分钟", "5 分钟", "10 分钟" };
+    private static readonly int[] OfflineValues = { 0, 30, 60, 120, 300, 600 };
+    private static readonly string[] OfflineTexts = { "立即", "30 秒", "1 分钟", "2 分钟", "5 分钟", "10 分钟" };
 
     public MainForm(IMainFormHost app)
     {

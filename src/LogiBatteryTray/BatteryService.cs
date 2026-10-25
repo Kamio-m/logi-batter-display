@@ -182,6 +182,7 @@ public sealed class BatteryService
                 device.PoweredOff = connection == false
                                     || protocol.LastError.Contains("0x0B")
                                     || protocol.LastError.Contains("0x0A")
+                                    || PoweredOffAfterSeconds <= 0
                                     || DateTime.Now - device.OfflineSince.Value >= TimeSpan.FromSeconds(PoweredOffAfterSeconds);
                 return ReadResult.NoResponse;
             }
