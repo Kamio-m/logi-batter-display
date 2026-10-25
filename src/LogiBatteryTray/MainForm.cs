@@ -47,6 +47,8 @@ internal sealed class MainForm : Form, IMessageFilter
     private static readonly Color Accent = Color.FromArgb(58, 130, 255);
 
     private bool _loading;
+    private readonly int _pageWidth;
+    private readonly int _cardWidth;
 
     private static readonly int[] IntervalValues = { 1, 2, 5, 10, 30, 60 };
     private static readonly string[] IntervalTexts = { "1 秒（实时）", "2 秒", "5 秒", "10 秒", "30 秒", "1 分钟" };
@@ -68,9 +70,8 @@ internal sealed class MainForm : Form, IMessageFilter
         _secondary = _light ? Color.FromArgb(108, 108, 116) : Color.FromArgb(152, 152, 160);
 
         Text = "LogiBatteryTray";
-        FormBorderStyle = FormBorderStyle.Sizable;
-        MaximizeBox = true;
-        MinimumSize = new Size((int)S(700), (int)S(460));
+        FormBorderStyle = FormBorderStyle.FixedSingle;
+        MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = _background;
         ForeColor = _fore;
@@ -80,6 +81,9 @@ internal sealed class MainForm : Form, IMessageFilter
         int windowWidth = Math.Min((int)S(820), workingArea.Width - (int)S(40));
         int windowHeight = Math.Min((int)S(600), workingArea.Height - (int)S(60));
         ClientSize = new Size(windowWidth, windowHeight);
+
+        _pageWidth = windowWidth - (int)S(212);
+        _cardWidth = Math.Max((int)S(420), _pageWidth - (int)S(56));
         DoubleBuffered = true;
 
         // ---------- 左侧功能栏 ----------
@@ -141,7 +145,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private Panel NewPage() => new()
     {
         Location = P(212, 0),
-        Size = new Size((int)S(608), (int)S(600)),
+        Size = new Size(_pageWidth, ClientSize.Height),
         BackColor = _background,
         Visible = false,
         AutoScroll = true,
@@ -161,7 +165,7 @@ internal sealed class MainForm : Form, IMessageFilter
         var card = new Panel
         {
             Location = P(28, y),
-            Size = new Size((int)S(552), (int)S(216)),
+            Size = new Size(_cardWidth, (int)S(216)),
             BackColor = Color.Transparent,
         };
         card.Paint += (_, e) => PaintCard(e, card, S(14));
@@ -203,7 +207,7 @@ internal sealed class MainForm : Form, IMessageFilter
         _emptyState.Controls.Add(new Label
         {
             Text = "连接设备",
-            Size = new Size((int)S(608), (int)S(52)),
+            Size = new Size(_pageWidth, (int)S(52)),
             Location = P(0, 250),
             TextAlign = ContentAlignment.MiddleCenter,
             Font = new Font("Segoe UI", 20f, FontStyle.Bold),
@@ -214,7 +218,7 @@ internal sealed class MainForm : Form, IMessageFilter
         _emptyState.Controls.Add(new Label
         {
             Text = "请插好罗技接收器或数据线",
-            Size = new Size((int)S(608), (int)S(24)),
+            Size = new Size(_pageWidth, (int)S(24)),
             Location = P(0, 306),
             TextAlign = ContentAlignment.MiddleCenter,
             Font = new Font("Segoe UI", 9f),
@@ -268,7 +272,7 @@ internal sealed class MainForm : Form, IMessageFilter
         var card = new Panel
         {
             Location = P(28, y),
-            Size = new Size((int)S(552), (int)S(170)),
+            Size = new Size(_cardWidth, (int)S(170)),
             BackColor = Color.Transparent,
         };
         card.Paint += (_, e) => PaintCard(e, card, S(14));
@@ -302,7 +306,7 @@ internal sealed class MainForm : Form, IMessageFilter
         var card = new Panel
         {
             Location = P(28, y),
-            Size = new Size((int)S(552), height),
+            Size = new Size(_cardWidth, height),
             BackColor = Color.Transparent,
         };
         card.Paint += (_, e) => PaintCard(e, card, S(14));
