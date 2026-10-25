@@ -18,6 +18,9 @@ internal sealed class AppSettings
     public bool LowBatteryNotify { get; set; } = true;
     public string LastDeviceName { get; set; } = "罗技鼠标";
 
+    /// <summary>托盘图标显示哪台设备（path#name；"auto" = 电量最低）。</summary>
+    public string SelectedDeviceKey { get; set; } = "";
+
     /// <summary>悬浮小卡上次拖动后的位置；int.MinValue 表示未设置（默认贴任务栏）。</summary>
     public int WidgetX { get; set; } = int.MinValue;
     public int WidgetY { get; set; } = int.MinValue;

@@ -46,6 +46,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private readonly ToolStripMenuItem _percentItem;
     private readonly ToolStripMenuItem _autostartItem;
     private readonly ToolStripMenuItem _notifyItem;
+    private readonly ToolStripMenuItem _deviceMenu = new("显示设备");
     private readonly Dictionary<int, ToolStripMenuItem> _intervalItems = new();
     private readonly List<(ToolStripMenuItem Item, int Mode)> _themeItems = new();
     private readonly List<(ToolStripMenuItem Item, int Percent)> _opacityItems = new();
@@ -94,6 +95,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _menu.Items.Add(_header);
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(new ToolStripMenuItem("刷新", null, (_, _) => RefreshAsync()) { ShortcutKeyDisplayString = "F5" });
+        _menu.Items.Add(_deviceMenu);
         _menu.Items.Add(new ToolStripMenuItem("贴回任务栏", null, (_, _) => DockWidgetToTaskbar()));
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(_percentItem);
@@ -103,6 +105,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _menu.Items.Add(BuildPersonalizeMenu());
         _menu.Items.Add(BuildShapeMenu());
         _menu.Items.Add(BuildOfflineMenu());
+        _menu.Opened += (_, _) => RebuildDeviceMenu();
         _menu.Items.Add(new ToolStripSeparator());
         ApplyMenuStyle();
         _menu.Items.Add(new ToolStripSeparator());
@@ -188,7 +191,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
                 _settings.Save();
                 UpdateMenuState();
 
-                var current = _service.Primary;
+                var current = DisplayDevice;
                 UpdateIcon(current?.Battery, current?.Online == true,
                     current?.Battery?.Percent is int percent ? $"{percent}%" : "--");
                 _widget?.RefreshView();
@@ -348,6 +351,87 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         return root;
     }
 
+    /// <summary>当前托盘图标要显示的设备。</summary>
+    public LogiDevice DisplayDevice
+    {
+        get
+        {
+            var devices = _service.Devices;
+            if (devices.Count == 0) return null;
+            if (devices.Count == 1) return devices[0];
+
+            string key = _settings.SelectedDeviceKey ?? "";
+
+            if (key == "auto")
+            {
+                return devices.Where(d => d.Online && d.Battery?.Percent != null)
+                              .OrderBy(d => d.Battery!.Percent)
+                              .FirstOrDefault() ?? devices[0];
+            }
+
+            if (key.Length > 0)
+            {
+                var match = devices.FirstOrDefault(d => DeviceKey(d) == key && d.Online)
+                            ?? devices.FirstOrDefault(d => DeviceKey(d) == key);
+                if (match != null) return match;
+            }
+
+            return devices.FirstOrDefault(d => d.Online) ?? devices[0];
+        }
+    }
+
+    private static string DeviceKey(LogiDevice device) => device.Path + "#" + device.Name;
+
+    private void RebuildDeviceMenu()
+    {
+        _deviceMenu.DropDownItems.Clear();
+
+        var devices = _service.Devices;
+        if (devices.Count == 0)
+        {
+            _deviceMenu.DropDownItems.Add(new ToolStripMenuItem("（未检测到设备）") { Enabled = false });
+            return;
+        }
+
+        string currentKey = DisplayDevice is LogiDevice current ? DeviceKey(current) : "";
+        string selected = _settings.SelectedDeviceKey ?? "";
+
+        if (devices.Count > 1)
+        {
+            var auto = new ToolStripMenuItem("自动（电量最低）", null, (_, _) =>
+            {
+                _settings.SelectedDeviceKey = "auto";
+                _settings.Save();
+                RefreshAsync();
+            })
+            {
+                Checked = selected == "auto",
+            };
+            _deviceMenu.DropDownItems.Add(auto);
+            _deviceMenu.DropDownItems.Add(new ToolStripSeparator());
+        }
+
+        foreach (var device in devices)
+        {
+            string key = DeviceKey(device);
+            string percent = device.Battery?.Percent is int value ? $"{value}%" : "--";
+            string state = device.Online ? "" : device.PoweredOff ? "（停用）" : "（休眠）";
+
+            var item = new ToolStripMenuItem($"{device.Name}   {percent}{state}")
+            {
+                Checked = (selected.Length > 0 ? selected : currentKey) == key,
+            };
+
+            item.Click += (_, _) =>
+            {
+                _settings.SelectedDeviceKey = key;
+                _settings.Save();
+                RefreshAsync();
+            };
+
+            _deviceMenu.DropDownItems.Add(item);
+        }
+    }
     private void ShowDetails()
     {
         if (_mainForm != null && !_mainForm.IsDisposed)
@@ -376,7 +460,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _service.PoweredOffAfterSeconds = _settings.OfflineAsOffSeconds;
         UpdateMenuState();
 
-        var device = _service.Primary;
+        var device = DisplayDevice;
         UpdateIcon(device?.Battery, device?.Online == true,
             device?.Battery?.Percent is int percent ? $"{percent}%" : "--");
         _widget?.RefreshView();
@@ -391,7 +475,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _widget.FormClosed += (_, _) => _widget = null;
         _widget.Show();
         ApplyWidgetStyle();
-        _widget.UpdateView(_service.Primary, _service.Primary?.Online == true);
+        _widget.UpdateView(DisplayDevice, DisplayDevice?.Online == true);
     }
 
     private void DockWidgetToTaskbar()
@@ -412,7 +496,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private void OnTimerTick(object sender, EventArgs e)
     {
         // 没找到设备或设备离线时加快重试，避免拔插接收器/插线后长时间不更新
-        _timer.Interval = _service.Primary == null || !_service.Primary.Online
+        _timer.Interval = DisplayDevice == null || !DisplayDevice.Online
             ? 10_000
             : Math.Max(1, _settings.IntervalSeconds) * 1000;
         RefreshAsync();
@@ -421,7 +505,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private void OnMouseActivity()
     {
         // 已连接时响应快一些；还没找到设备时降低扫描频率，避免频繁超时探测
-        int seconds = _service.Primary == null ? 10 : 2;
+        int seconds = DisplayDevice == null ? 10 : 2;
         if (DateTime.Now - _lastActivityRefresh < TimeSpan.FromSeconds(seconds)) return;
         _lastActivityRefresh = DateTime.Now;
         RefreshAsync();
@@ -491,7 +575,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
     private void Apply(bool ok)
     {
-        var device = _service.Primary;
+        var device = DisplayDevice;
         var battery = device?.Battery;
         bool online = device != null && device.Online && battery != null;
 
@@ -567,16 +651,51 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         }
 
         string tip;
-        if (online)
+
+        var devices = _service.Devices;
+        if (devices.Count > 1)
+        {
+            // 多设备：悬停提示里列出全部电量
+            var parts = devices.Select(device =>
+            {
+                string value = device.Battery?.Percent is int percent ? $"{percent}%" : "--";
+                string state = device.Online ? "" : device.PoweredOff ? "(停用)" : "(休眠)";
+                return $"{device.Name} {value}{state}";
+            });
+
+            tip = string.Join(" · ", parts);
+        }
+        else if (online)
+        {
             tip = $"{_settings.LastDeviceName} {percentText} · {battery.StatusText}";
+        }
         else if (battery?.Percent is int last)
-            tip = $"{_settings.LastDeviceName} {(_service.Primary?.PoweredOff == true ? "停用" : "休眠")} · 上次 {last}%";
+        {
+            tip = $"{_settings.LastDeviceName} {(DisplayDevice?.PoweredOff == true ? "停用" : "休眠")} · 上次 {last}%";
+        }
         else
+        {
             tip = _service.Problem ?? "等待鼠标唤醒";
+        }
 
-        if (tip.Length > 63) tip = tip[..63];
+        SetTrayText(tip);
+    }
 
-        try { _tray.Text = tip; } catch { }
+    /// <summary>NotifyIcon.Text 有长度限制，超长时逐级回退。</summary>
+    private void SetTrayText(string tip)
+    {
+        foreach (int limit in new[] { 120, 60 })
+        {
+            try
+            {
+                _tray.Text = tip.Length > limit ? tip[..limit] : tip;
+                return;
+            }
+            catch
+            {
+                // 换更短的限制再试
+            }
+        }
     }
 
     private void UpdateMenuState()
@@ -610,7 +729,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _settings.Save();
         UpdateMenuState();
 
-        var device = _service.Primary;
+        var device = DisplayDevice;
         UpdateIcon(device?.Battery, device?.Online == true, device?.Battery?.Percent is int p ? $"{p}%" : "--");
     }
 

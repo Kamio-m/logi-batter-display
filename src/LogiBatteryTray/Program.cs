@@ -547,6 +547,7 @@ internal static class Cli
 
         public AppSettings Settings { get; }
         public BatteryService Service { get; }
+        public LogiDevice DisplayDevice => Service.Primary;
         public void RefreshNow() { }
         public void OpenLogFolderPublic() { }
         public void ExitAppPublic() { }
