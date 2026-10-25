@@ -46,8 +46,8 @@ internal sealed class MainForm : Form
 
     private bool _loading;
 
-    private static readonly int[] IntervalValues = { 5, 10, 30, 60, 300 };
-    private static readonly string[] IntervalTexts = { "5 秒（实时）", "10 秒", "30 秒", "1 分钟", "5 分钟" };
+    private static readonly int[] IntervalValues = { 1, 2, 5, 10, 30, 60 };
+    private static readonly string[] IntervalTexts = { "1 秒（实时）", "2 秒", "5 秒", "10 秒", "30 秒", "1 分钟" };
     private static readonly int[] ShapeValues = { 0, 1 };
     private static readonly string[] ShapeTexts = { "圆环", "电池图标" };
     private static readonly int[] OfflineValues = { 60, 120, 300, 600 };
@@ -459,7 +459,8 @@ internal sealed class MainForm : Form
         string offlineLabel = device?.PoweredOff == true ? "停用" : "休眠";
         string status = online
             ? battery!.StatusText
-            : battery?.Percent != null ? $"{offlineLabel} · 上次 {battery.Percent}%" : "未连接";
+            : battery?.Percent != null ? $"{offlineLabel} · 上次 {battery.Percent}%"
+            : _app.Service.ReceiverConnected ? "未连接" : "请连接设备";
 
         _nameLabel.Text = device?.Name ?? _app.Settings.LastDeviceName;
         _statusLabel.Text = status;
