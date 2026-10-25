@@ -52,7 +52,8 @@ internal sealed class MainForm : Form, IMessageFilter
     private readonly Color _border;
     private readonly Color _fore;
     private readonly Color _secondary;
-    private readonly Color _accent;
+    private Color _accent;
+    private readonly List<Button> _accentButtons = new();
 
     private bool _loading;
 
@@ -61,7 +62,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private static readonly int[] ShapeValues = { 0, 1, 2 };
     private static readonly string[] ShapeTexts = { "圆环", "电池图标", "百分比" };
     private static readonly int[] ThemeValues = { 0, 1, 2 };
-    private static readonly string[] ThemeTexts = { "跟随系统", "深色", "浅色" };
+    private static readonly string[] ThemeTexts = { "跟随系统", "黑色", "白色" };
     private static readonly int[] OpacityValues = { 100, 95, 90, 85 };
     private static readonly string[] OpacityTexts = { "100%", "95%", "90%", "85%" };
     private static readonly int[] CornerValues = { 8, 12, 16 };
@@ -318,16 +319,16 @@ internal sealed class MainForm : Form, IMessageFilter
         AddValueRow(tray, S(46), "显示设备", out _deviceButton, "—");
         y += tray.Height + S(16);
 
-        var appearance = AddCard(page.Content, "外观", 2, y);
+        var appearance = AddCard(page.Content, "外观", 3, y);
         float row = S(46);
+        row = AddValueRow(appearance, row, "主题", out _themeButton, "跟随系统");
         row = AddValueRow(appearance, row, "图标形状", out _shapeButton, "圆环");
         AddValueRow(appearance, row, "主题色", out _accentButton, "蓝色");
 
         y += appearance.Height + S(16);
 
-        var menuCard = AddCard(page.Content, "右键菜单", 3, y);
+        var menuCard = AddCard(page.Content, "右键菜单", 2, y);
         float menuRow = S(46);
-        menuRow = AddValueRow(menuCard, menuRow, "主题", out _themeButton, "跟随系统");
         menuRow = AddValueRow(menuCard, menuRow, "不透明度", out _opacityButton, "100%");
         AddValueRow(menuCard, menuRow, "圆角", out _cornerButton, "中");
 
@@ -344,7 +345,14 @@ internal sealed class MainForm : Form, IMessageFilter
 
         _accentButton.Click += (_, _) => CycleAccent();
 
-        _themeButton.Click += (_, _) => Cycle(_themeButton, ThemeValues, ThemeTexts, v => _app.Settings.ThemeMode = v);
+        _themeButton.Click += (_, _) =>
+        {
+            int next = (_app.Settings.ThemeMode + 1) % ThemeValues.Length;
+            _themeButton.Text = ThemeTexts[next];
+            _app.Settings.ThemeMode = next;
+            _app.ApplySettingsFromWindow();
+            _app.ReopenWindow();   // 黑白配色在构造时确定，重开一次窗口
+        };
         _opacityButton.Click += (_, _) => Cycle(_opacityButton, OpacityValues, OpacityTexts, v => _app.Settings.MenuOpacity = v);
         _cornerButton.Click += (_, _) => Cycle(_cornerButton, CornerValues, CornerTexts, v => _app.Settings.MenuCorner = v);
 
@@ -500,6 +508,7 @@ internal sealed class MainForm : Form, IMessageFilter
             ForeColor = primary ? Color.White : _fore,
         };
         button.FlatAppearance.BorderColor = _border;
+        if (primary) _accentButtons.Add(button);
         return button;
     }
 
@@ -560,10 +569,24 @@ internal sealed class MainForm : Form, IMessageFilter
         _app.Settings.AccentIndex = next;
         _accentButton.Text = Theme.AccentName(next);
 
-        _app.ApplySettingsFromWindow();
+        ApplyAccent();                    // 立即重绘，不重开窗口
+        _app.ApplySettingsFromWindow();   // 保存并同步右键菜单配色
+    }
 
-        // 界面颜色在构造时就定下来了，重新开一次窗口应用新配色
-        _app.ReopenWindow();
+    /// <summary>把主题色应用到界面上所有用色的控件。</summary>
+    private void ApplyAccent()
+    {
+        _accent = Theme.AccentFor(_app.Settings.AccentIndex);
+
+        foreach (var nav in _navs) nav.AccentColor = _accent;
+        _autostartToggle.OnColor = _accent;
+        _notifyToggle.OnColor = _accent;
+
+        foreach (var button in _accentButtons) button.BackColor = _accent;
+        foreach (var card in _deviceCards) card.AccentColor = _accent;
+
+        _sidebar.Invalidate();
+        _devicePage.Invalidate(true);
     }
     private void Cycle(ValueButton button, int[] values, string[] texts, Action<int> apply)
     {
@@ -767,8 +790,8 @@ internal sealed class MainForm : Form, IMessageFilter
         private readonly Label _bigPercent;
         private readonly Color _fore;
         private readonly Color _secondary;
-        private readonly Color _accentColor;
         private readonly bool _light;
+        private Color _accentColor;
         private BatteryReading _battery;
         private bool _online;
         private bool _selected;
@@ -776,13 +799,13 @@ internal sealed class MainForm : Form, IMessageFilter
 
         public DeviceCard(Color surface, Color outline, Color background, Color fore, Color secondary, bool light, Color accent)
         {
-            _accentColor = accent;
             Surface = surface;
             Outline = outline;
             Background = background;
             _fore = fore;
             _secondary = secondary;
             _light = light;
+            _accentColor = accent;
 
             _ring = new PictureBox
             {
@@ -852,6 +875,20 @@ internal sealed class MainForm : Form, IMessageFilter
 
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public Color AccentColor
+        {
+            get => _accentColor;
+            set
+            {
+                _accentColor = value;
+                if (_badge != null) _badge.BackColor = value;
+                if (_selected) Outline = value;
+                Invalidate();
+            }
+        }
+
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool Selected
         {
             get => _selected;
@@ -859,12 +896,14 @@ internal sealed class MainForm : Form, IMessageFilter
             {
                 if (_selected == value) return;
                 _selected = value;
-                Outline = value ? _accentColor : Outline;
+                Outline = value ? _accentColor : BorderRestore;
                 Invalidate();
                 _badge.Visible = value;
                 _badge.Location = new Point(Width - _badge.Width - (int)(16 * Dpi), (int)(16 * Dpi));
             }
         }
+
+        private Color BorderRestore => _light ? Color.FromArgb(227, 227, 233) : Color.FromArgb(56, 56, 62);
 
         public void SetDevice(LogiDevice device)
         {
@@ -885,7 +924,6 @@ internal sealed class MainForm : Form, IMessageFilter
             _percent.Text = _battery?.Percent is int percent ? $"{percent}%" : "--";
             _percent.ForeColor = _online ? IconFactory.LevelColor(_battery!) : _secondary;
 
-            // 百分比样式下，左侧用文字标签显示大号数字（和界面字体一致），右侧不再重复
             bool percentShape = IconFactory.Shape == IconShape.Percent;
             _percentMode = percentShape;
             _percent.Visible = !percentShape;
@@ -916,7 +954,6 @@ internal sealed class MainForm : Form, IMessageFilter
             LayoutLabels();
         }
 
-        /// <summary>按真实文字高度依次往下排，避免不同 DPI 下重叠。</summary>
         private void LayoutLabels()
         {
             if (_name == null) return;
@@ -941,9 +978,6 @@ internal sealed class MainForm : Form, IMessageFilter
             }
 
             _updated.Location = new Point(x, (int)y);
-            _updated.Text = string.IsNullOrEmpty(_updated.Text) && _online ? "更新于 --:--:--" : _updated.Text;
-
-            // 标签移动后整块重绘，否则会留下旧文字的残影
             Invalidate(true);
         }
 
@@ -964,17 +998,15 @@ internal sealed class MainForm : Form, IMessageFilter
                 _name.MaximumSize = new Size(Math.Max((int)(80 * Dpi), Width - (int)(126 * Dpi) - (int)(16 * Dpi)), 0);
         }
     }
-
     /// <summary>左侧功能栏按钮：图标 + 文字，选中即时刷新。</summary>
     private sealed class NavButton : Control
     {
         private readonly string _glyph;
         private readonly Color _fore;
         private readonly Color _muted;
-        private readonly Color _accent;
+        private Color _accent;
         private bool _hover;
         private bool _selected;
-        private bool _percentMode;
 
         public NavButton(string glyph, string text, Color fore, Color muted, Color accent)
         {
@@ -987,6 +1019,14 @@ internal sealed class MainForm : Form, IMessageFilter
                      ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
             Cursor = Cursors.Hand;
             BackColor = Color.Transparent;
+        }
+
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public Color AccentColor
+        {
+            get => _accent;
+            set { _accent = value; Invalidate(); }
         }
 
         [System.ComponentModel.Browsable(false)]
@@ -1019,16 +1059,16 @@ internal sealed class MainForm : Form, IMessageFilter
             }
 
             using (var iconFont = new Font("Segoe MDL2 Assets", 11f))
-            using (var iconBrush = new SolidBrush(_selected ? Color.White : (_hover ? _fore : _muted)))
             {
-                TextRenderer.DrawText(g, _glyph, iconFont, new Rectangle(12, 0, 24, Height), iconBrush.Color,
+                var iconColor = _selected ? Color.White : (_hover ? _fore : _muted);
+                TextRenderer.DrawText(g, _glyph, iconFont, new Rectangle(12, 0, 24, Height), iconColor,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             }
 
             using (var textFont = new Font("Segoe UI", 9.5f, _selected ? FontStyle.Bold : FontStyle.Regular))
             {
-                var color = _selected ? Color.White : (_hover ? _fore : _muted);
-                TextRenderer.DrawText(g, Text, textFont, new Rectangle(46, 0, Width - 50, Height), color,
+                var textColor = _selected ? Color.White : (_hover ? _fore : _muted);
+                TextRenderer.DrawText(g, Text, textFont, new Rectangle(46, 0, Width - 50, Height), textColor,
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
             }
         }

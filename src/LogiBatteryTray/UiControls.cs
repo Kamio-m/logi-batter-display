@@ -5,7 +5,7 @@ namespace LogiBatteryTray;
 /// <summary>开关控件（替代勾选框），带圆角轨道和滑块。</summary>
 internal sealed class ToggleSwitch : Control
 {
-    private readonly Color _onColor;
+    private Color _onColor;
     private readonly Color _offColor;
     private bool _checked;
 
@@ -33,6 +33,14 @@ internal sealed class ToggleSwitch : Control
             Invalidate();
             CheckedChanged?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color OnColor
+    {
+        get => _onColor;
+        set { _onColor = value; Invalidate(); }
     }
 
     public event EventHandler CheckedChanged;
