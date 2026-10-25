@@ -67,8 +67,8 @@ internal sealed class MainForm : Form, IMessageFilter
     private static readonly string[] OpacityTexts = { "100%", "95%", "90%", "85%" };
     private static readonly int[] CornerValues = { 8, 12, 16 };
     private static readonly string[] CornerTexts = { "小", "中", "大" };
-    private static readonly int[] OfflineValues = { 60, 120, 300, 600 };
-    private static readonly string[] OfflineTexts = { "1 分钟", "2 分钟", "5 分钟", "10 分钟" };
+    private static readonly int[] OfflineValues = { 30, 60, 120, 300, 600 };
+    private static readonly string[] OfflineTexts = { "30 秒", "1 分钟", "2 分钟", "5 分钟", "10 分钟" };
 
     public MainForm(IMainFormHost app)
     {
@@ -659,7 +659,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
         _intervalButton.Text = IntervalTexts[IndexOr(IntervalValues, settings.IntervalSeconds, 1)];
         _shapeButton.Text = ShapeTexts[IndexOr(ShapeValues, settings.IconShapeMode, 0)];
-        _offlineButton.Text = OfflineTexts[IndexOr(OfflineValues, settings.OfflineAsOffSeconds, 1)];
+        _offlineButton.Text = OfflineTexts[IndexOr(OfflineValues, settings.OfflineAsOffSeconds, 2)];
         _themeButton.Text = ThemeTexts[IndexOr(ThemeValues, settings.ThemeMode, 0)];
         _opacityButton.Text = OpacityTexts[IndexOr(OpacityValues, settings.MenuOpacity, 0)];
         _cornerButton.Text = CornerTexts[IndexOr(CornerValues, settings.MenuCorner, 1)];
