@@ -486,24 +486,33 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             _tray.BalloonTipIcon = ToolTipIcon.Warning;
             _tray.ShowBalloonTip(8000);
         }
+
+        _mainForm?.UpdateView();
     }
+
+    private string _lastIconKey;
 
     private void UpdateIcon(BatteryReading battery, bool online, string percentText)
     {
-        try
+        string iconKey = $"{battery?.Percent}|{battery?.Charging}|{online}|{_settings.ShowPercentInIcon}|{IconFactory.Shape}";
+        if (iconKey != _lastIconKey || _tray.Icon == null)
         {
-            var old = _tray.Icon;
-            _tray.Icon = IconFactory.Create(
-                Math.Max(32, SystemInformation.SmallIconSize.Width),
-                battery,
-                _settings.ShowPercentInIcon,
-                Theme.IsLightTaskbar(),
-                !online);
-            old?.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Log.Write("更新图标失败: " + ex.Message);
+            _lastIconKey = iconKey;
+            try
+            {
+                var old = _tray.Icon;
+                _tray.Icon = IconFactory.Create(
+                    Math.Max(32, SystemInformation.SmallIconSize.Width),
+                    battery,
+                    _settings.ShowPercentInIcon,
+                    Theme.IsLightTaskbar(),
+                    !online);
+                old?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Log.Write("更新图标失败: " + ex.Message);
+            }
         }
 
         string tip;
