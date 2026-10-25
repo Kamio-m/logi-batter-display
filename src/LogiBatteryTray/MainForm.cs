@@ -13,14 +13,14 @@ internal interface IMainFormHost
     void ApplySettingsFromWindow();
 }
 
-/// <summary>左键点托盘图标打开的设置窗口：左侧功能栏 + 右侧内容页。</summary>
+/// <summary>左键点托盘图标打开的设置窗口：左侧功能栏 + 右侧可滚动内容页。</summary>
 internal sealed class MainForm : Form, IMessageFilter
 {
     private readonly IMainFormHost _app;
     private readonly bool _light;
 
     private readonly Panel _sidebar;
-    private readonly Panel[] _pages;
+    private readonly ScrollHost[] _pages;
     private readonly NavButton[] _navs;
 
     private Label _nameLabel;
@@ -28,8 +28,8 @@ internal sealed class MainForm : Form, IMessageFilter
     private Label _percentLabel;
     private Label _updatedLabel;
     private PictureBox _ringBox;
-    private Panel _deviceContent;
     private Panel _emptyState;
+    private ScrollHost _devicePage;
 
     private ToggleSwitch _percentToggle;
     private ToggleSwitch _autostartToggle;
@@ -47,8 +47,6 @@ internal sealed class MainForm : Form, IMessageFilter
     private static readonly Color Accent = Color.FromArgb(58, 130, 255);
 
     private bool _loading;
-    private readonly int _pageWidth;
-    private readonly int _cardWidth;
 
     private static readonly int[] IntervalValues = { 1, 2, 5, 10, 30, 60 };
     private static readonly string[] IntervalTexts = { "1 秒（实时）", "2 秒", "5 秒", "10 秒", "30 秒", "1 分钟" };
@@ -70,27 +68,25 @@ internal sealed class MainForm : Form, IMessageFilter
         _secondary = _light ? Color.FromArgb(108, 108, 116) : Color.FromArgb(152, 152, 160);
 
         Text = "LogiBatteryTray";
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MaximizeBox = true;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = _background;
         ForeColor = _fore;
         Font = new Font("Segoe UI", 9f);
-        // 屏幕放不下时自动缩小，剩下的靠滚动条
-        var workingArea = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 800);
-        int windowWidth = Math.Min((int)S(820), workingArea.Width - (int)S(40));
-        int windowHeight = Math.Min((int)S(600), workingArea.Height - (int)S(60));
-        ClientSize = new Size(windowWidth, windowHeight);
-
-        _pageWidth = windowWidth - (int)S(212);
-        _cardWidth = Math.Max((int)S(420), _pageWidth - (int)S(56));
         DoubleBuffered = true;
+
+        var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 800);
+        int startWidth = Math.Min((int)S(860), area.Width - (int)S(40));
+        int startHeight = Math.Min((int)S(620), area.Height - (int)S(60));
+        ClientSize = new Size(startWidth, startHeight);
+        MinimumSize = new Size((int)S(720), (int)S(460));
 
         // ---------- 左侧功能栏 ----------
         _sidebar = new Panel
         {
             Location = P(0, 0),
-            Size = new Size((int)S(212), (int)S(600)),
+            Size = new Size((int)S(212), ClientSize.Height),
             BackColor = _sidebarColor,
         };
         _sidebar.Paint += PaintSidebar;
@@ -120,7 +116,8 @@ internal sealed class MainForm : Form, IMessageFilter
             Font = new Font("Segoe UI", 8f),
             ForeColor = _secondary,
             BackColor = Color.Transparent,
-            Location = P(22, 562),
+            Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
+            Location = P(22, ClientSize.Height - (int)S(38)),
         });
 
         // ---------- 右侧内容页 ----------
@@ -130,7 +127,6 @@ internal sealed class MainForm : Form, IMessageFilter
         ShowPage(0);
         LoadFromSettings();
         UpdateView();
-
         Application.AddMessageFilter(this);
     }
 
@@ -142,34 +138,33 @@ internal sealed class MainForm : Form, IMessageFilter
     private Color ButtonHover => _light ? Color.FromArgb(233, 233, 240) : Color.FromArgb(56, 56, 63);
     private Color ToggleOff => _light ? Color.FromArgb(214, 214, 221) : Color.FromArgb(74, 74, 82);
 
-    private Panel NewPage() => new()
+    private int SidebarWidth => (int)S(212);
+
+    private ScrollHost NewPage() => new(_background)
     {
         Location = P(212, 0),
-        Size = new Size(_pageWidth, ClientSize.Height),
-        BackColor = _background,
+        Size = new Size(ClientSize.Width - SidebarWidth, ClientSize.Height),
         Visible = false,
-        AutoScroll = true,
     };
 
     // ---------- 设备页 ----------
-    private Panel BuildDevicePage()
+    private ScrollHost BuildDevicePage()
     {
         var page = NewPage();
+        _devicePage = page;
 
-        float y = PlaceTitle(page, "设备", "查看当前连接的罗技鼠标");
+        float y = PlaceTitle(page.Content, "设备", "查看当前连接的罗技鼠标");
         y += S(10);
-
-        _deviceContent = new Panel { Location = P(0, 0), Size = page.Size, BackColor = Color.Transparent };
-        page.Controls.Add(_deviceContent);
 
         var card = new Panel
         {
             Location = P(28, y),
-            Size = new Size(_cardWidth, (int)S(216)),
+            Size = new Size(CardWidth(page), (int)S(216)),
             BackColor = Color.Transparent,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
         card.Paint += (_, e) => PaintCard(e, card, S(14));
-        _deviceContent.Controls.Add(card);
+        page.Content.Controls.Add(card);
 
         _ringBox = new PictureBox
         {
@@ -190,25 +185,24 @@ internal sealed class MainForm : Form, IMessageFilter
         _updatedLabel = AddLabel(card, 208, infoY, "", 8.5f, FontStyle.Regular, _secondary);
 
         float actionsY = y + S(238);
-        AddLabel(_deviceContent, 28, actionsY, "快捷操作", 9.5f, FontStyle.Bold, _fore);
+        AddLabel(page.Content, 28, actionsY, "快捷操作", 9.5f, FontStyle.Bold, _fore);
 
         var refresh = MakeButton(28, actionsY + S(26), "立即刷新", S(116), true);
-        refresh.Parent = _deviceContent;
+        refresh.Parent = page.Content;
         refresh.Click += (_, _) => _app.RefreshNow();
 
         var log = MakeButton(156, actionsY + S(26), "打开日志", S(116));
-        log.Parent = _deviceContent;
+        log.Parent = page.Content;
         log.Click += (_, _) => _app.OpenLogFolderPublic();
 
-        // 未连接时的整页提示
-        _emptyState = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Visible = false };
+        // 未连接时覆盖整页
+        _emptyState = new Panel { Dock = DockStyle.Fill, BackColor = _background, Visible = false };
         page.Controls.Add(_emptyState);
 
         _emptyState.Controls.Add(new Label
         {
             Text = "连接设备",
-            Size = new Size(_pageWidth, (int)S(52)),
-            Location = P(0, 250),
+            Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleCenter,
             Font = new Font("Segoe UI", 20f, FontStyle.Bold),
             ForeColor = _fore,
@@ -218,9 +212,9 @@ internal sealed class MainForm : Form, IMessageFilter
         _emptyState.Controls.Add(new Label
         {
             Text = "请插好罗技接收器或数据线",
-            Size = new Size(_pageWidth, (int)S(24)),
-            Location = P(0, 306),
-            TextAlign = ContentAlignment.MiddleCenter,
+            Dock = DockStyle.Bottom,
+            Height = (int)S(56),
+            TextAlign = ContentAlignment.TopCenter,
             Font = new Font("Segoe UI", 9f),
             ForeColor = _secondary,
             BackColor = Color.Transparent,
@@ -231,20 +225,20 @@ internal sealed class MainForm : Form, IMessageFilter
     }
 
     // ---------- 设置页 ----------
-    private Panel BuildSettingsPage()
+    private ScrollHost BuildSettingsPage()
     {
         var page = NewPage();
-        float y = PlaceTitle(page, "设置", "所有修改都会立即生效");
+        float y = PlaceTitle(page.Content, "设置", "所有修改都会立即生效");
         y += S(14);
 
-        var appearance = AddCard(page, "外观", 2, y);
+        var appearance = AddCard(page.Content, "外观", 2, y);
         float row = S(46);
         row = AddValueRow(appearance, row, "图标形状", out _shapeButton, "圆环");
         AddToggleRow(appearance, row, "图标显示百分比（电池图标时生效）", out _percentToggle);
 
         y += appearance.Height + S(16);
 
-        var behavior = AddCard(page, "行为", 4, y);
+        var behavior = AddCard(page.Content, "行为", 4, y);
         row = S(46);
         row = AddValueRow(behavior, row, "刷新间隔", out _intervalButton, "2 秒");
         row = AddValueRow(behavior, row, "关机判定", out _offlineButton, "2 分钟");
@@ -263,20 +257,21 @@ internal sealed class MainForm : Form, IMessageFilter
     }
 
     // ---------- 关于页 ----------
-    private Panel BuildAboutPage()
+    private ScrollHost BuildAboutPage()
     {
         var page = NewPage();
-        float y = PlaceTitle(page, "关于", "LogiBatteryTray");
+        float y = PlaceTitle(page.Content, "关于", "LogiBatteryTray");
         y += S(10);
 
         var card = new Panel
         {
             Location = P(28, y),
-            Size = new Size(_cardWidth, (int)S(170)),
+            Size = new Size(CardWidth(page), (int)S(170)),
             BackColor = Color.Transparent,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
         card.Paint += (_, e) => PaintCard(e, card, S(14));
-        page.Controls.Add(card);
+        page.Content.Controls.Add(card);
 
         float cy = S(26);
         var title = AddLabel(card, 28, cy, "LogiBatteryTray", 13f, FontStyle.Bold, _fore);
@@ -289,28 +284,31 @@ internal sealed class MainForm : Form, IMessageFilter
 
         float buttonsY = y + S(192);
         var log = MakeButton(28, buttonsY, "打开日志", S(116));
-        log.Parent = page;
+        log.Parent = page.Content;
         log.Click += (_, _) => _app.OpenLogFolderPublic();
 
         var quit = MakeButton(156, buttonsY, "退出程序", S(116));
-        quit.Parent = page;
+        quit.Parent = page.Content;
         quit.Click += (_, _) => { _app.ExitAppPublic(); Close(); };
 
         return page;
     }
 
+    private int CardWidth(ScrollHost page) => Math.Max((int)S(420), page.Content.Width - (int)S(56));
+
     // ---------- 卡片与行 ----------
-    private Panel AddCard(Panel page, string title, int rows, float y)
+    private Panel AddCard(Control parent, string title, int rows, float y)
     {
         int height = (int)S(46 + rows * 52 + 8);
         var card = new Panel
         {
             Location = P(28, y),
-            Size = new Size(_cardWidth, height),
+            Size = new Size(Math.Max((int)S(420), parent.Width - (int)S(56)), height),
             BackColor = Color.Transparent,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
         card.Paint += (_, e) => PaintCard(e, card, S(14));
-        page.Controls.Add(card);
+        parent.Controls.Add(card);
 
         card.Controls.Add(new Label
         {
@@ -334,6 +332,7 @@ internal sealed class MainForm : Form, IMessageFilter
             Text = value,
             Size = new Size((int)S(168), (int)S(34)),
             Location = new Point(card.Width - (int)S(168) - (int)S(20), (int)(y + (S(52) - S(34)) / 2)),
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
         };
         card.Controls.Add(button);
 
@@ -348,6 +347,7 @@ internal sealed class MainForm : Form, IMessageFilter
         {
             Size = new Size((int)S(46), (int)S(26)),
             Location = new Point(card.Width - (int)S(46) - (int)S(20), (int)(y + (S(52) - S(26)) / 2)),
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
         };
         card.Controls.Add(toggle);
 
@@ -367,10 +367,10 @@ internal sealed class MainForm : Form, IMessageFilter
         });
     }
 
-    private float PlaceTitle(Panel page, string title, string subtitle)
+    private float PlaceTitle(Control parent, string title, string subtitle)
     {
-        var titleLabel = AddLabel(page, 28, 26, title, 17f, FontStyle.Bold, _fore);
-        var subtitleLabel = AddLabel(page, 30, titleLabel.Bottom + S(2), subtitle, 8.5f, FontStyle.Regular, _secondary);
+        var titleLabel = AddLabel(parent, 28, 26, title, 17f, FontStyle.Bold, _fore);
+        var subtitleLabel = AddLabel(parent, 30, titleLabel.Bottom + S(2), subtitle, 8.5f, FontStyle.Regular, _secondary);
         return subtitleLabel.Bottom + S(10);
     }
 
@@ -519,7 +519,7 @@ internal sealed class MainForm : Form, IMessageFilter
     public void UpdateView()
     {
         bool receiverConnected = _app.Service.ReceiverConnected;
-        _deviceContent.Visible = receiverConnected;
+        _devicePage.Content.Visible = receiverConnected;
         _emptyState.Visible = !receiverConnected;
 
         var device = _app.Service.Primary;
@@ -557,7 +557,6 @@ internal sealed class MainForm : Form, IMessageFilter
         previous?.Dispose();
     }
 
-    /// <summary>文字高度随内容/DPI 变化，这里重新排一次避免重叠。</summary>
     private void LayoutInfoColumn()
     {
         float y = S(30);
@@ -573,16 +572,14 @@ internal sealed class MainForm : Form, IMessageFilter
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
-
         if (_sidebar == null || _pages == null) return;
 
-        int sidebarWidth = (int)S(212);
         _sidebar.Height = ClientSize.Height;
 
         foreach (var page in _pages)
         {
-            page.Location = new Point(sidebarWidth, 0);
-            page.Size = new Size(ClientSize.Width - sidebarWidth, ClientSize.Height);
+            page.Location = new Point(SidebarWidth, 0);
+            page.Size = new Size(ClientSize.Width - SidebarWidth, ClientSize.Height);
         }
     }
 
@@ -594,17 +591,15 @@ internal sealed class MainForm : Form, IMessageFilter
         if (!ClientRectangle.Contains(PointToClient(Cursor.Position))) return false;
 
         var page = _pages.FirstOrDefault(p => p.Visible);
-        if (page == null || !page.VerticalScroll.Visible) return false;
+        if (page == null) return false;
 
-        long wParam = m.WParam.ToInt64();
-        int delta = (short)((wParam >> 16) & 0xFFFF);
+        int delta = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);
         if (delta == 0) return false;
 
-        int offset = -page.AutoScrollPosition.Y + (delta > 0 ? -80 : 80);
-        offset = Math.Max(0, offset);
-        page.AutoScrollPosition = new Point(0, offset);
+        page.ScrollBy(delta > 0 ? -(int)S(90) : (int)S(90));
         return true;
     }
+
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         Application.RemoveMessageFilter(this);
