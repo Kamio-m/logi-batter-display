@@ -135,6 +135,7 @@ internal static class Cli
             case "--ping": return PingIndex(args.Length > 1 ? args[1] : "1");
             case "--receiver": return ReceiverProbe();
             case "--popup-preview": return PopupPreview(args.Length > 1 ? args[1] : "popup.png");
+            case "--window-preview": return WindowPreview(args.Length > 1 ? args[1] : "window.png");
             case "--verify-tray": return VerifyTray();
             default:
                 Console.WriteLine("用法: LogiBatteryTray.exe [--once | --features | --iconpreview <png> | --popup-preview <png> | --verify-tray]");
@@ -506,6 +507,45 @@ internal static class Cli
     }
 
     /// <summary>把真实数据渲染到弹出面板并保存为图片。</summary>
+    /// <summary>把主窗口渲染成图片，检查布局。</summary>
+    private static int WindowPreview(string path)
+    {
+        Application.EnableVisualStyles();
+
+        var settings = AppSettings.Load();
+        IconFactory.Shape = (IconShape)settings.IconShapeMode;
+
+        var service = new BatteryService();
+        service.AddPreviewDevice("PRO X Wireless", new BatteryReading { Percent = 85 });
+
+        using var form = new MainForm(new PreviewHost(settings, service));
+        form.Show();
+        Application.DoEvents();
+
+        using var bitmap = new Bitmap(form.Width, form.Height);
+        form.DrawToBitmap(bitmap, new Rectangle(0, 0, form.Width, form.Height));
+        bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+        form.Close();
+
+        Console.WriteLine($"已生成 {path}（{form.Width}x{form.Height}）");
+        return 0;
+    }
+
+    private sealed class PreviewHost : IMainFormHost
+    {
+        public PreviewHost(AppSettings settings, BatteryService service)
+        {
+            Settings = settings;
+            Service = service;
+        }
+
+        public AppSettings Settings { get; }
+        public BatteryService Service { get; }
+        public void RefreshNow() { }
+        public void OpenLogFolderPublic() { }
+        public void ExitAppPublic() { }
+        public void ApplySettingsFromWindow() { }
+    }
     private static int PopupPreview(string path)
     {
         var service = new BatteryService();

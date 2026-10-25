@@ -203,6 +203,19 @@ public sealed class BatteryService
         InterfaceGone,
     }
 
+    /// <summary>仅供预览：塞一个假设备。</summary>
+    internal void AddPreviewDevice(string name, BatteryReading battery)
+    {
+        _devices.Add(new LogiDevice
+        {
+            Name = name,
+            Battery = battery,
+            Online = true,
+            UpdatedAt = DateTime.Now,
+            ProtocolVersion = 4.2,
+        });
+    }
+
     /// <summary>扫描罗技 HID 接口，找出支持电量特性的鼠标。</summary>
     public void Discover()
     {
