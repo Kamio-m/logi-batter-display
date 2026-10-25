@@ -28,6 +28,8 @@ internal sealed class MainForm : Form
     private Label _percentLabel;
     private Label _updatedLabel;
     private PictureBox _ringBox;
+    private Panel _deviceContent;
+    private Panel _emptyState;
 
     private CheckBox _percentCheck;
     private CheckBox _autostartCheck;
@@ -142,6 +144,9 @@ internal sealed class MainForm : Form
         float y = PlaceTitle(page, "设备", "查看当前连接的罗技鼠标");
         y += S(8);
 
+        _deviceContent = new Panel { Location = P(0, 0), Size = page.Size, BackColor = Color.Transparent };
+        page.Controls.Add(_deviceContent);
+
         var card = new Panel
         {
             Location = P(28, y),
@@ -149,7 +154,34 @@ internal sealed class MainForm : Form
             BackColor = Color.Transparent,
         };
         card.Paint += (_, e) => PaintCard(e, card, S(14));
-        page.Controls.Add(card);
+        _deviceContent.Controls.Add(card);
+
+        _emptyState = new Panel { Location = P(0, 0), Size = page.Size, BackColor = Color.Transparent, Visible = false };
+        page.Controls.Add(_emptyState);
+
+        _emptyState.Controls.Add(new Label
+        {
+            Text = "连接设备",
+            Size = new Size((int)S(600), (int)S(52)),
+            Location = P(0, 236),
+            TextAlign = ContentAlignment.MiddleCenter,
+            Font = new Font("Segoe UI", 20f, FontStyle.Bold),
+            ForeColor = _fore,
+            BackColor = Color.Transparent,
+        });
+
+        _emptyState.Controls.Add(new Label
+        {
+            Text = "请插好罗技接收器或数据线",
+            Size = new Size((int)S(600), (int)S(24)),
+            Location = P(0, 292),
+            TextAlign = ContentAlignment.MiddleCenter,
+            Font = new Font("Segoe UI", 9f),
+            ForeColor = _secondary,
+            BackColor = Color.Transparent,
+        });
+
+        _emptyState.BringToFront();
 
         _ringBox = new PictureBox
         {
@@ -170,14 +202,14 @@ internal sealed class MainForm : Form
         _updatedLabel = AddLabel(card, 208, infoY, "", 8.5f, FontStyle.Regular, _secondary);
 
         float actionsY = y + S(238);
-        AddLabel(page, 28, actionsY, "快捷操作", 9.5f, FontStyle.Bold, _fore);
+        AddLabel(_deviceContent, 28, actionsY, "快捷操作", 9.5f, FontStyle.Bold, _fore);
 
         var refresh = MakeButton(28, actionsY + S(26), "立即刷新", primary: true);
-        refresh.Parent = page;
+        refresh.Parent = _deviceContent;
         refresh.Click += (_, _) => _app.RefreshNow();
 
         var log = MakeButton(156, actionsY + S(26), "打开日志");
-        log.Parent = page;
+        log.Parent = _deviceContent;
         log.Click += (_, _) => _app.OpenLogFolderPublic();
 
         return page;
@@ -452,6 +484,10 @@ internal sealed class MainForm : Form
 
     public void UpdateView()
     {
+        bool receiverConnected = _app.Service.ReceiverConnected;
+        _deviceContent.Visible = receiverConnected;
+        _emptyState.Visible = !receiverConnected;
+
         var device = _app.Service.Primary;
         var battery = device?.Battery;
         bool online = device != null && device.Online && battery != null;
