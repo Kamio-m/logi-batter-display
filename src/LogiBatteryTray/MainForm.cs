@@ -237,7 +237,7 @@ internal sealed class MainForm : Form, IMessageFilter
             var card = new DeviceCard(_cardColor, _border, _background, _fore, _secondary, _light)
             {
                 Location = new Point((int)S(28), (int)top),
-                Size = new Size(cardWidth, (int)S(132)),
+                Size = new Size(cardWidth, (int)S(140)),
                 Radius = S(14),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
             };
@@ -255,7 +255,7 @@ internal sealed class MainForm : Form, IMessageFilter
             _deviceList.Controls.Add(card);
             _deviceCards.Add(card);
 
-            top += S(132) + S(12);
+            top += S(140) + S(12);
         }
 
         _deviceList.Height = (int)Math.Max(top, S(10));
@@ -710,10 +710,12 @@ internal sealed class MainForm : Form, IMessageFilter
             };
             Controls.Add(_ring);
 
-            _name = MakeLabel(126, 20, 12.5f, FontStyle.Bold, fore);
-            _status = MakeLabel(126, 46, 9f, FontStyle.Regular, secondary);
-            _percent = MakeLabel(126, 66, 24f, FontStyle.Bold, fore);
-            _updated = MakeLabel(126, 102, 8f, FontStyle.Regular, secondary);
+            _name = MakeLabel(126, 18, 12.5f, FontStyle.Bold, fore);
+            _status = MakeLabel(126, 42, 9f, FontStyle.Regular, secondary);
+            _percent = MakeLabel(126, 62, 22f, FontStyle.Bold, fore);
+            _updated = MakeLabel(126, 98, 8f, FontStyle.Regular, secondary);
+
+            LayoutLabels();
 
             _badge = new Label
             {
@@ -776,7 +778,7 @@ internal sealed class MainForm : Form, IMessageFilter
             _online = device.Online && _battery != null;
 
             _name.Text = device.Name;
-            _name.MaximumSize = new Size(Math.Max(0, Width - (int)(150 * Dpi)), 0);
+            _name.MaximumSize = new Size(Math.Max((int)(80 * Dpi), Width - (int)(126 * Dpi) - (int)(16 * Dpi)), 0);
 
             string offlineLabel = device.PoweredOff ? "停用" : "休眠";
             _status.Text = _online
@@ -801,15 +803,39 @@ internal sealed class MainForm : Form, IMessageFilter
                 // 保留原图
             }
             previous?.Dispose();
+
+            LayoutLabels();
+        }
+
+        /// <summary>按真实文字高度依次往下排，避免不同 DPI 下重叠。</summary>
+        private void LayoutLabels()
+        {
+            if (_name == null) return;
+
+            int x = (int)(126 * Dpi);
+            float y = 18 * Dpi;
+
+            _name.Location = new Point(x, (int)y);
+            y = _name.Bottom + 2 * Dpi;
+
+            _status.Location = new Point(x, (int)y);
+            y = _status.Bottom + 2 * Dpi;
+
+            _percent.Location = new Point(x, (int)y);
+            y = _percent.Bottom + 2 * Dpi;
+
+            _updated.Location = new Point(x, (int)y);
         }
 
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
+            LayoutLabels();
+
             if (_badge != null)
                 _badge.Location = new Point(Width - _badge.Width - (int)(16 * Dpi), (int)(16 * Dpi));
             if (_name != null)
-                _name.MaximumSize = new Size(Math.Max(0, Width - (int)(150 * Dpi)), 0);
+                _name.MaximumSize = new Size(Math.Max((int)(80 * Dpi), Width - (int)(126 * Dpi) - (int)(16 * Dpi)), 0);
         }
     }
 
