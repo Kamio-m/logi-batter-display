@@ -7,6 +7,7 @@ internal interface IMainFormHost
 {
     AppSettings Settings { get; }
     BatteryService Service { get; }
+    LogiDevice DisplayDevice { get; }
     void RefreshNow();
     void OpenLogFolderPublic();
     void ExitAppPublic();
@@ -514,7 +515,7 @@ internal sealed class MainForm : Form, IMessageFilter
         _devicePage.Content.Visible = receiverConnected;
         _emptyState.Visible = !receiverConnected;
 
-        var device = _app.Service.Primary;
+        var device = _app.DisplayDevice;
         var battery = device?.Battery;
         bool online = device != null && device.Online && battery != null;
 
