@@ -705,6 +705,7 @@ internal sealed class MainForm : Form, IMessageFilter
         private readonly Label _updated;
         private readonly Label _badge;
         private readonly PictureBox _ring;
+        private readonly Label _bigPercent;
         private readonly Color _fore;
         private readonly Color _secondary;
         private readonly Color _accentColor = Accent;
@@ -730,6 +731,19 @@ internal sealed class MainForm : Form, IMessageFilter
                 BackColor = Color.Transparent,
             };
             Controls.Add(_ring);
+
+            _bigPercent = new Label
+            {
+                AutoSize = false,
+                Location = _ring.Location,
+                Size = _ring.Size,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font("Segoe UI", 30f, FontStyle.Bold),
+                ForeColor = fore,
+                BackColor = Color.Transparent,
+                Visible = false,
+            };
+            Controls.Add(_bigPercent);
 
             _name = MakeLabel(126, 18, 12.5f, FontStyle.Bold, fore);
             _status = MakeLabel(126, 42, 9f, FontStyle.Regular, secondary);
@@ -810,8 +824,17 @@ internal sealed class MainForm : Form, IMessageFilter
             _percent.Text = _battery?.Percent is int percent ? $"{percent}%" : "--";
             _percent.ForeColor = _online ? IconFactory.LevelColor(_battery!) : _secondary;
 
-            // 百分比样式下，左侧图标本身就是大号数字，右侧不再重复
-            _percent.Visible = IconFactory.Shape != IconShape.Percent;
+            // 百分比样式下，左侧用文字标签显示大号数字（和界面字体一致），右侧不再重复
+            bool percentShape = IconFactory.Shape == IconShape.Percent;
+            _percent.Visible = !percentShape;
+            _ring.Visible = !percentShape;
+            _bigPercent.Visible = percentShape;
+
+            if (percentShape)
+            {
+                _bigPercent.Text = _battery?.Percent is int bigValue ? bigValue.ToString() : "--";
+                _bigPercent.ForeColor = _online ? IconFactory.LevelColor(_battery!) : _secondary;
+            }
 
             _updated.Text = device.UpdatedAt is DateTime updatedAt ? $"更新于 {updatedAt:HH:mm:ss}" : "";
 
