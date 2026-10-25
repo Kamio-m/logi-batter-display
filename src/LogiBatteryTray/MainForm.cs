@@ -24,13 +24,12 @@ internal sealed class MainForm : Form, IMessageFilter
     private readonly ScrollHost[] _pages;
     private readonly NavButton[] _navs;
 
-    private Label _nameLabel;
-    private Label _statusLabel;
-    private Label _percentLabel;
-    private Label _updatedLabel;
-    private PictureBox _ringBox;
+    private readonly List<DeviceCard> _deviceCards = new();
+    private Panel _deviceList;
+    private Panel _actionsPanel;
     private Panel _emptyState;
     private ScrollHost _devicePage;
+    private string _cardsSignature = "";
 
     private ToggleSwitch _percentToggle;
     private ToggleSwitch _autostartToggle;
@@ -158,40 +157,35 @@ internal sealed class MainForm : Form, IMessageFilter
         var page = NewPage();
         _devicePage = page;
 
-        float y = PlaceTitle(page.Content, "设备", "查看当前连接的罗技鼠标");
-        y += S(10);
+        float y = PlaceTitle(page.Content, "设备", "查看所有已连接的罗技设备，点卡片可切换托盘显示");
+        y += S(12);
 
-        var card = NewCard(CardWidth(page), (int)S(216));
-        card.Location = P(28, y);
-        page.Content.Controls.Add(card);
-
-        _ringBox = new PictureBox
+        _deviceList = new Panel
         {
-            Location = P(26, 28),
-            Size = new Size((int)S(158), (int)S(158)),
-            SizeMode = PictureBoxSizeMode.Zoom,
+            Location = P(0, y),
+            Size = new Size(page.Content.Width, (int)S(10)),
             BackColor = Color.Transparent,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
-        card.Controls.Add(_ringBox);
+        page.Content.Controls.Add(_deviceList);
 
-        float infoY = S(30);
-        _nameLabel = AddLabel(card, 206, infoY, "罗技鼠标", 14f, FontStyle.Bold, _fore);
-        infoY = _nameLabel.Bottom + S(4);
-        _statusLabel = AddLabel(card, 206, infoY, "使用中", 9.5f, FontStyle.Regular, _secondary);
-        infoY = _statusLabel.Bottom + S(10);
-        _percentLabel = AddLabel(card, 206, infoY, "--", 32f, FontStyle.Bold, _fore);
-        infoY = _percentLabel.Bottom + S(4);
-        _updatedLabel = AddLabel(card, 208, infoY, "", 8.5f, FontStyle.Regular, _secondary);
+        _actionsPanel = new Panel
+        {
+            Location = P(0, y),
+            Size = new Size(page.Content.Width, (int)S(78)),
+            BackColor = Color.Transparent,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+        };
+        page.Content.Controls.Add(_actionsPanel);
 
-        float actionsY = y + S(238);
-        AddLabel(page.Content, 28, actionsY, "快捷操作", 9.5f, FontStyle.Bold, _fore);
+        AddLabel(_actionsPanel, 28, 0, "快捷操作", 9.5f, FontStyle.Bold, _fore);
 
-        var refresh = MakeButton(28, actionsY + S(26), "立即刷新", S(116), true);
-        refresh.Parent = page.Content;
+        var refresh = MakeButton(28, S(26), "立即刷新", S(116), true);
+        refresh.Parent = _actionsPanel;
         refresh.Click += (_, _) => _app.RefreshNow();
 
-        var log = MakeButton(156, actionsY + S(26), "打开日志", S(116));
-        log.Parent = page.Content;
+        var log = MakeButton(156, S(26), "打开日志", S(116));
+        log.Parent = _actionsPanel;
         log.Click += (_, _) => _app.OpenLogFolderPublic();
 
         // 未连接时覆盖整页
@@ -221,6 +215,70 @@ internal sealed class MainForm : Form, IMessageFilter
 
         _emptyState.BringToFront();
         return page;
+    }
+
+    private static string DeviceKeyOf(LogiDevice device) => device.Path + "#" + device.Name;
+
+    /// <summary>设备列表变化时重建卡片。</summary>
+    private void RebuildDeviceCards(IReadOnlyList<LogiDevice> devices)
+    {
+        foreach (var card in _deviceCards)
+        {
+            _deviceList.Controls.Remove(card);
+            card.Dispose();
+        }
+        _deviceCards.Clear();
+
+        float top = 0;
+        int cardWidth = Math.Max((int)S(420), _deviceList.Width - (int)S(56));
+
+        foreach (var device in devices)
+        {
+            var card = new DeviceCard(_cardColor, _border, _background, _fore, _secondary, _light)
+            {
+                Location = new Point((int)S(28), (int)top),
+                Size = new Size(cardWidth, (int)S(132)),
+                Radius = S(14),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+            };
+
+            card.SetDevice(device);
+            card.Selected = DeviceKeyOf(device) == SelectedKey();
+
+            string key = DeviceKeyOf(device);
+            void Choose(object _, EventArgs __) => ChooseDevice(key);
+
+            card.Click += Choose;
+            foreach (Control child in card.Controls)
+                child.Click += Choose;
+
+            _deviceList.Controls.Add(card);
+            _deviceCards.Add(card);
+
+            top += S(132) + S(12);
+        }
+
+        _deviceList.Height = (int)Math.Max(top, S(10));
+
+        if (_actionsPanel != null)
+        {
+            _actionsPanel.Top = _deviceList.Bottom + (int)S(18);
+        }
+    }
+
+    private string SelectedKey()
+    {
+        string key = _app.Settings.SelectedDeviceKey ?? "";
+        return key.Length > 0 ? key : DeviceKeyOf(_app.DisplayDevice ?? new LogiDevice { Path = "", Name = "" });
+    }
+
+    private void ChooseDevice(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return;
+
+        _app.Settings.SelectedDeviceKey = key;
+        _app.ApplySettingsFromWindow();
+        UpdateView();
     }
 
     // ---------- 设置页 ----------
@@ -268,7 +326,7 @@ internal sealed class MainForm : Form, IMessageFilter
         float y = PlaceTitle(page.Content, "关于", "LogiBatteryTray");
         y += S(10);
 
-        var card = NewCard(CardWidth(page), (int)S(170));
+        var card = NewCard(Math.Max((int)S(420), page.Content.Width - (int)S(56)), (int)S(170));
         card.Location = P(28, y);
         page.Content.Controls.Add(card);
 
@@ -288,7 +346,8 @@ internal sealed class MainForm : Form, IMessageFilter
 
         var quit = MakeButton(156, buttonsY, "退出程序", S(116));
         quit.Parent = page.Content;
-        quit.Click += (_, _) => { _app.ExitAppPublic(); Close(); };
+        quit.Click += (_, _) => _app.ExitAppPublic();
+        quit.Click += (_, _) => Close();
 
         return page;
     }
@@ -302,7 +361,6 @@ internal sealed class MainForm : Form, IMessageFilter
         Background = _background,
         Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
     };
-    private int CardWidth(ScrollHost page) => Math.Max((int)S(420), page.Content.Width - (int)S(56));
 
     // ---------- 卡片与行 ----------
     private Panel AddCard(Control parent, string title, int rows, float y)
@@ -428,14 +486,6 @@ internal sealed class MainForm : Form, IMessageFilter
         e.Graphics.DrawString("罗技鼠标电量", subFont, subBrush, S(60), S(46));
     }
 
-    private void PaintCard(PaintEventArgs e, Control card, float radius)
-    {
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var path = Rounded(new RectangleF(0, 0, card.Width, card.Height), radius);
-        using (var fill = new SolidBrush(_cardColor)) e.Graphics.FillPath(fill, path);
-        using (var pen = new Pen(_border, 1f)) e.Graphics.DrawPath(pen, path);
-    }
-
     private static GraphicsPath Rounded(RectangleF rect, float radius)
     {
         var path = new GraphicsPath();
@@ -463,9 +513,22 @@ internal sealed class MainForm : Form, IMessageFilter
             _navs[i].Selected = i == index;
     }
 
-    private static string DeviceKeyOf(LogiDevice device) => device.Path + "#" + device.Name;
+    private void Cycle(ValueButton button, int[] values, string[] texts, Action<int> apply)
+    {
+        if (_loading) return;
 
-    /// <summary>根据当前发现到的设备刷新“显示设备”选项。</summary>
+        int index = Array.IndexOf(texts, button.Text);
+        if (index < 0) index = 0;
+
+        int next = (index + 1) % values.Length;
+        button.Text = texts[next];
+        button.Invalidate();
+        apply(values[next]);
+
+        _app.ApplySettingsFromWindow();
+        UpdateView();
+    }
+
     private void RebuildDeviceOptions()
     {
         var devices = _app.Service.Devices;
@@ -489,7 +552,7 @@ internal sealed class MainForm : Form, IMessageFilter
         }
 
         int index = _deviceOptions.FindIndex(option => option.Key == selected);
-        if (index < 0) index = devices.Count > 1 ? 0 : 0;
+        if (index < 0) index = 0;
 
         _deviceIndex = index;
         _deviceButton.Text = _deviceOptions[index].Label;
@@ -507,21 +570,6 @@ internal sealed class MainForm : Form, IMessageFilter
         _deviceButton.Invalidate();
 
         _app.Settings.SelectedDeviceKey = option.Key;
-        _app.ApplySettingsFromWindow();
-        UpdateView();
-    }
-    private void Cycle(ValueButton button, int[] values, string[] texts, Action<int> apply)
-    {
-        if (_loading) return;
-
-        int index = Array.IndexOf(texts, button.Text);
-        if (index < 0) index = 0;
-
-        int next = (index + 1) % values.Length;
-        button.Text = texts[next];
-        button.Invalidate();
-        apply(values[next]);
-
         _app.ApplySettingsFromWindow();
         UpdateView();
     }
@@ -567,57 +615,27 @@ internal sealed class MainForm : Form, IMessageFilter
 
     public void UpdateView()
     {
-        RebuildDeviceOptions();
-
         bool receiverConnected = _app.Service.ReceiverConnected;
         _devicePage.Content.Visible = receiverConnected;
         _emptyState.Visible = !receiverConnected;
 
-        var device = _app.DisplayDevice;
-        var battery = device?.Battery;
-        bool online = device != null && device.Online && battery != null;
+        var devices = _app.Service.Devices;
 
-        string offlineLabel = device?.PoweredOff == true ? "停用" : "休眠";
-        string status = online
-            ? battery!.StatusText
-            : battery?.Percent != null ? $"{offlineLabel} · 上次 {battery.Percent}%"
-            : receiverConnected ? "未连接" : "请连接设备";
-
-        _nameLabel.Text = device?.Name ?? _app.Settings.LastDeviceName;
-        _statusLabel.Text = status;
-        _percentLabel.Text = battery?.Percent is int percent ? $"{percent}%" : "--";
-        _percentLabel.ForeColor = online ? IconFactory.LevelColor(battery!) : _secondary;
-        _updatedLabel.Text = device?.UpdatedAt is DateTime time
-            ? $"更新于 {time:HH:mm:ss}"
-            : (_app.Service.Problem ?? "尚未读取到数据");
-
-        LayoutInfoColumn();
-
-        int size = (int)S(158);
-        var previous = _ringBox.Image;
-        try
+        string signature = string.Join("|", devices.Select(DeviceKeyOf));
+        if (signature != _cardsSignature)
         {
-            using var icon = IconFactory.Create(size, battery, _app.Settings.ShowPercentInIcon, _light,
-                device != null && !online);
-            _ringBox.Image = icon.ToBitmap();
+            _cardsSignature = signature;
+            RebuildDeviceCards(devices);
         }
-        catch
-        {
-            // 绘制失败时保留原图
-        }
-        previous?.Dispose();
-    }
 
-    private void LayoutInfoColumn()
-    {
-        float y = S(30);
-        _nameLabel.Top = (int)y;
-        y = _nameLabel.Bottom + S(4);
-        _statusLabel.Top = (int)y;
-        y = _statusLabel.Bottom + S(10);
-        _percentLabel.Top = (int)y;
-        y = _percentLabel.Bottom + S(4);
-        _updatedLabel.Top = (int)y;
+        foreach (var card in _deviceCards)
+        {
+            var device = devices.FirstOrDefault(d => DeviceKeyOf(d) == card.Key);
+            if (device != null) card.SetDevice(device);
+            card.Selected = card.Key == SelectedKey();
+        }
+
+        if (_deviceButton != null) RebuildDeviceOptions();
     }
 
     protected override void OnResize(EventArgs e)
@@ -654,8 +672,145 @@ internal sealed class MainForm : Form, IMessageFilter
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         Application.RemoveMessageFilter(this);
-        _ringBox.Image?.Dispose();
         base.OnFormClosed(e);
+    }
+
+    /// <summary>设备页里的单台设备卡片。</summary>
+    private sealed class DeviceCard : CardPanel
+    {
+        private readonly Label _name;
+        private readonly Label _status;
+        private readonly Label _percent;
+        private readonly Label _updated;
+        private readonly Label _badge;
+        private readonly PictureBox _ring;
+        private readonly Color _fore;
+        private readonly Color _secondary;
+        private readonly Color _accentColor = Accent;
+        private readonly bool _light;
+        private BatteryReading _battery;
+        private bool _online;
+        private bool _selected;
+
+        public DeviceCard(Color surface, Color outline, Color background, Color fore, Color secondary, bool light)
+        {
+            Surface = surface;
+            Outline = outline;
+            Background = background;
+            _fore = fore;
+            _secondary = secondary;
+            _light = light;
+
+            _ring = new PictureBox
+            {
+                Location = new Point((int)(22 * Dpi), (int)(22 * Dpi)),
+                Size = new Size((int)(88 * Dpi), (int)(88 * Dpi)),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.Transparent,
+            };
+            Controls.Add(_ring);
+
+            _name = MakeLabel(126, 20, 12.5f, FontStyle.Bold, fore);
+            _status = MakeLabel(126, 46, 9f, FontStyle.Regular, secondary);
+            _percent = MakeLabel(126, 66, 24f, FontStyle.Bold, fore);
+            _updated = MakeLabel(126, 102, 8f, FontStyle.Regular, secondary);
+
+            _badge = new Label
+            {
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = _accentColor,
+                Padding = new Padding((int)(6 * Dpi), (int)(2 * Dpi), (int)(6 * Dpi), (int)(2 * Dpi)),
+                Location = new Point(Width - (int)(96 * Dpi), (int)(16 * Dpi)),
+                Visible = false,
+                Text = "托盘显示",
+            };
+            Controls.Add(_badge);
+
+            foreach (Control child in Controls) child.Cursor = Cursors.Hand;
+            Cursor = Cursors.Hand;
+        }
+
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public string Key { get; set; } = "";
+
+        private float Dpi => DeviceDpi / 96f;
+
+        private Label MakeLabel(float x, float y, float size, FontStyle style, Color color)
+        {
+            var label = new Label
+            {
+                AutoSize = true,
+                Location = new Point((int)(x * Dpi), (int)(y * Dpi)),
+                Font = new Font("Segoe UI", size, style),
+                ForeColor = color,
+                BackColor = Color.Transparent,
+            };
+            Controls.Add(label);
+            return label;
+        }
+
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool Selected
+        {
+            get => _selected;
+            set
+            {
+                if (_selected == value) return;
+                _selected = value;
+                Outline = value ? _accentColor : Outline;
+                Invalidate();
+                _badge.Visible = value;
+                _badge.Location = new Point(Width - _badge.Width - (int)(16 * Dpi), (int)(16 * Dpi));
+            }
+        }
+
+        public void SetDevice(LogiDevice device)
+        {
+            if (Key.Length == 0) Key = device.Path + "#" + device.Name;
+
+            _battery = device.Battery;
+            _online = device.Online && _battery != null;
+
+            _name.Text = device.Name;
+            _name.MaximumSize = new Size(Math.Max(0, Width - (int)(150 * Dpi)), 0);
+
+            string offlineLabel = device.PoweredOff ? "停用" : "休眠";
+            _status.Text = _online
+                ? _battery!.StatusText
+                : _battery?.Percent != null ? $"{offlineLabel} · 上次 {_battery.Percent}%"
+                : "未连接";
+
+            _percent.Text = _battery?.Percent is int percent ? $"{percent}%" : "--";
+            _percent.ForeColor = _online ? IconFactory.LevelColor(_battery!) : _secondary;
+
+            _updated.Text = device.UpdatedAt is DateTime updatedAt ? $"更新于 {updatedAt:HH:mm:ss}" : "";
+
+            int size = (int)(88 * Dpi);
+            var previous = _ring.Image;
+            try
+            {
+                using var icon = IconFactory.Create(size, _battery, false, _light, device.Online == false);
+                _ring.Image = icon.ToBitmap();
+            }
+            catch
+            {
+                // 保留原图
+            }
+            previous?.Dispose();
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            if (_badge != null)
+                _badge.Location = new Point(Width - _badge.Width - (int)(16 * Dpi), (int)(16 * Dpi));
+            if (_name != null)
+                _name.MaximumSize = new Size(Math.Max(0, Width - (int)(150 * Dpi)), 0);
+        }
     }
 
     /// <summary>左侧功能栏按钮：图标 + 文字，选中即时刷新。</summary>

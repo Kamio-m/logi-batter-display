@@ -165,7 +165,7 @@ internal sealed class ValueButton : Control
 }
 
 /// <summary>圆角卡片：自带双缓冲和缩放重绘，避免拖动窗口时留下残影。</summary>
-internal sealed class CardPanel : Panel
+internal class CardPanel : Panel
 {
     public CardPanel()
     {
