@@ -949,16 +949,16 @@ internal sealed class MainForm : Form, IMessageFilter
 
             using (var iconFont = new Font("Segoe MDL2 Assets", 11f))
             using (var iconBrush = new SolidBrush(_selected ? Color.White : (_hover ? _fore : _muted)))
-            using (var iconFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
-                g.DrawString(_glyph, iconFont, iconBrush, new RectangleF(12, 0, 24, Height), iconFormat);
+                TextRenderer.DrawText(g, _glyph, iconFont, new Rectangle(12, 0, 24, Height), iconBrush.Color,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             }
 
             using (var textFont = new Font("Segoe UI", 9.5f, _selected ? FontStyle.Bold : FontStyle.Regular))
-            using (var textBrush = new SolidBrush(_selected ? Color.White : (_hover ? _fore : _muted)))
-            using (var textFormat = new StringFormat { LineAlignment = StringAlignment.Center })
             {
-                g.DrawString(Text, textFont, textBrush, new RectangleF(46, 0, Width - 50, Height), textFormat);
+                var color = _selected ? Color.White : (_hover ? _fore : _muted);
+                TextRenderer.DrawText(g, Text, textFont, new Rectangle(46, 0, Width - 50, Height), color,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
             }
         }
 
