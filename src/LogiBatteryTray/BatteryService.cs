@@ -80,7 +80,7 @@ public sealed class BatteryService
 
             // 接口还在但读不到：插线充电时鼠标会从接收器切到直连，
             // 接收器仍枚举但不再应答，所以定期重扫一次找到新设备
-            bool rediscover = !anyInterfaceAlive || (DateTime.Now - _lastRediscover).TotalSeconds >= 15;
+            bool rediscover = !anyInterfaceAlive || (DateTime.Now - _lastRediscover).TotalSeconds >= 5;
             if (rediscover)
             {
                 _lastRediscover = DateTime.Now;
