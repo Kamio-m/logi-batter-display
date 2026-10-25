@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 
 namespace LogiBatteryTray;
 
@@ -70,7 +71,8 @@ internal sealed class MainForm : Form, IMessageFilter
         _fore = _light ? Color.FromArgb(24, 24, 28) : Color.FromArgb(243, 243, 247);
         _secondary = _light ? Color.FromArgb(108, 108, 116) : Color.FromArgb(152, 152, 160);
 
-        Text = "LogiBatteryTray";
+        Text = "";
+        ShowIcon = false;
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = true;
         StartPosition = FormStartPosition.CenterScreen;
@@ -134,6 +136,12 @@ internal sealed class MainForm : Form, IMessageFilter
         Application.AddMessageFilter(this);
     }
 
+    private const int DwmUseImmersiveDarkMode = 20;
+    private const int DwmUseImmersiveDarkModeLegacy = 19;
+    private const int DwmBorderColor = 34;
+
+    [DllImport("dwmapi.dll", SetLastError = true)]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
     private float S(float value) => value * DeviceDpi / 96f;
 
     private Point P(float x, float y) => new((int)S(x), (int)S(y));
@@ -638,6 +646,24 @@ internal sealed class MainForm : Form, IMessageFilter
         if (_deviceButton != null) RebuildDeviceOptions();
     }
 
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        ApplyTitleBarTheme();
+    }
+
+    /// <summary>让标题栏跟随界面深/浅色，边框色也与卡片一致。</summary>
+    private void ApplyTitleBarTheme()
+    {
+        if (Handle == IntPtr.Zero) return;
+
+        int dark = _light ? 0 : 1;
+        if (DwmSetWindowAttribute(Handle, DwmUseImmersiveDarkMode, ref dark, sizeof(int)) != 0)
+            DwmSetWindowAttribute(Handle, DwmUseImmersiveDarkModeLegacy, ref dark, sizeof(int));
+
+        int border = ColorTranslator.ToWin32(_background);
+        DwmSetWindowAttribute(Handle, DwmBorderColor, ref border, sizeof(int));
+    }
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
