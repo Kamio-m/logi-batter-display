@@ -347,7 +347,7 @@ internal static class Cli
         personalize.DropDownItems.Add(new ToolStripMenuItem("圆角"));
         menu.Items.Add(personalize);
 
-        var renderer = MenuStyle.CreateRenderer(false, 12);
+        var renderer = MenuStyle.CreateRenderer(false, 12, Theme.AccentFor(0));
         menu.Renderer = renderer;
         menu.Padding = new Padding(6, 6, 6, 6);
 
@@ -521,6 +521,9 @@ internal static class Cli
         if (args != null && args.Contains("ring")) IconFactory.Shape = IconShape.Ring;
         if (args != null && args.Contains("percent")) IconFactory.Shape = IconShape.Percent;
 
+        var accentArg = args?.FirstOrDefault(a => a.StartsWith("accent", StringComparison.OrdinalIgnoreCase));
+        if (accentArg != null && int.TryParse(accentArg[6..], out int accentIndex)) settings.AccentIndex = accentIndex;
+
         var service = new BatteryService();
         if (!(args.Length > 3 && args[3] == "empty"))
             service.AddPreviewDevice("PRO X Wireless", new BatteryReading { Percent = 85 });
@@ -560,6 +563,7 @@ internal static class Cli
         public void OpenLogFolderPublic() { }
         public void ExitAppPublic() { }
         public void ApplySettingsFromWindow() { }
+        public void ReopenWindow() { }
     }
     private static int PopupPreview(string path)
     {

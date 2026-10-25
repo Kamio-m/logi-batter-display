@@ -5,6 +5,21 @@ namespace LogiBatteryTray;
 /// <summary>主题判断（浅色/深色任务栏）。</summary>
 internal static class Theme
 {
+    /// <summary>主题色（强调色）备选。</summary>
+    public static readonly (string Name, Color Color)[] Accents =
+    {
+        ("蓝色", Color.FromArgb(58, 130, 255)),
+        ("绿色", Color.FromArgb(47, 180, 99)),
+        ("紫色", Color.FromArgb(139, 92, 246)),
+        ("橙色", Color.FromArgb(245, 158, 11)),
+        ("粉色", Color.FromArgb(236, 72, 153)),
+        ("青色", Color.FromArgb(6, 182, 212)),
+    };
+
+    public static Color AccentFor(int index) => Accents[Math.Clamp(index, 0, Accents.Length - 1)].Color;
+
+    public static string AccentName(int index) => Accents[Math.Clamp(index, 0, Accents.Length - 1)].Name;
+
     private static bool _cached;
     private static bool _cachedValue;
     private static DateTime _cachedAt = DateTime.MinValue;
@@ -284,7 +299,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             _ => Theme.IsLightTaskbar(),
         };
 
-        var renderer = MenuStyle.CreateRenderer(light, _settings.MenuCorner);
+        var renderer = MenuStyle.CreateRenderer(light, _settings.MenuCorner, Theme.AccentFor(_settings.AccentIndex));
         Color back = light ? Color.FromArgb(250, 250, 252) : Color.FromArgb(30, 30, 32);
 
         ToolStripManager.Renderer = renderer;
@@ -449,6 +464,18 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     public BatteryService Service => _service;
 
     public void RefreshNow() => RefreshAsync();
+
+    /// <summary>关掉再重开主窗口（用来应用新配色）。</summary>
+    public void ReopenWindow()
+    {
+        if (_mainForm != null && !_mainForm.IsDisposed)
+        {
+            _mainForm.SuppressExitOnClose = true;
+            _mainForm.Close();
+        }
+
+        ShowDetails();
+    }
     public void OpenLogFolderPublic() => OpenLogFolder();
     public void ExitAppPublic() => ExitApp();
 

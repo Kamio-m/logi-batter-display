@@ -155,7 +155,7 @@ internal static class MenuStyle
     }
 
     /// <summary>按主题生成渲染器。</summary>
-    public static RoundedMenuRenderer CreateRenderer(bool light, int radius)
+    public static RoundedMenuRenderer CreateRenderer(bool light, int radius, Color accent)
     {
         return new RoundedMenuRenderer
         {
@@ -164,7 +164,7 @@ internal static class MenuStyle
             Border = light ? Color.FromArgb(214, 214, 220) : Color.FromArgb(70, 70, 76),
             Foreground = light ? Color.FromArgb(28, 28, 32) : Color.White,
             Muted = light ? Color.FromArgb(130, 130, 136) : Color.FromArgb(150, 150, 156),
-            Highlight = light ? Color.FromArgb(232, 232, 238) : Color.FromArgb(52, 52, 58),
+            Highlight = Color.FromArgb(light ? 46 : 64, accent),
         };
     }
 }
