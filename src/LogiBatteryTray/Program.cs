@@ -134,7 +134,6 @@ internal static class Cli
             case "--menu-preview": return MenuPreview(args.Length > 1 ? args[1] : "menu.png");
             case "--ping": return PingIndex(args.Length > 1 ? args[1] : "1");
             case "--receiver": return ReceiverProbe();
-            case "--bt": return BluetoothList();
             case "--popup-preview": return PopupPreview(args.Length > 1 ? args[1] : "popup.png");
             case "--verify-tray": return VerifyTray();
             default:
@@ -264,19 +263,6 @@ internal static class Cli
 
         sheet.Save(path, System.Drawing.Imaging.ImageFormat.Png);
         Console.WriteLine("已生成 " + path);
-        return 0;
-    }
-    /// <summary>列出 Windows 已缓存电量的蓝牙设备。</summary>
-    private static int BluetoothList()
-    {
-        var devices = BluetoothBattery.ReadAll();
-        if (devices.Count == 0) { Console.WriteLine("没有带电量属性的蓝牙设备"); return 0; }
-
-        foreach (var device in devices)
-        {
-            string updated = device.Updated is DateTime time ? time.ToString("MM-dd HH:mm") : "未知";
-            Console.WriteLine($"{device.Name}   {device.Percent}%   更新于 {updated}   {device.Address}");
-        }
         return 0;
     }
     /// <summary>遍历所有罗技接口，用接收器索引 0xFF 探测，找出接收器级状态。</summary>
@@ -525,7 +511,7 @@ internal static class Cli
         var service = new BatteryService();
         service.Refresh();
 
-        using var form = new DetailsForm(service, () => { }, BluetoothBattery.ReadAll());
+        using var form = new DetailsForm(service, () => { });
         form.StartPosition = FormStartPosition.Manual;
         form.Location = new Point(-3000, -3000);
         form.Show();
