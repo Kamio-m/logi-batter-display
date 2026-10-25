@@ -129,7 +129,7 @@ internal static class Cli
             case "--features": return Features();
             case "--iconpreview": return IconPreview(args.Length > 1 ? args[1] : "icon-preview.png");
             case "--iconstyles": return IconStyles(args.Length > 1 ? args[1] : "icon-styles.png");
-            case "--iconvariants": return IconVariants(args.Length > 1 ? args[1] : "icon-variants.png");
+            case "--iconvariants": return IconVariants(args.Length > 1 ? args[1] : "icon-variants.png", args.Length > 2 ? int.Parse(args[2]) : 0);
             case "--dump": return DumpFeature(args[1]);
             case "--menu-preview": return MenuPreview(args.Length > 1 ? args[1] : "menu.png");
             case "--ping": return PingIndex(args.Length > 1 ? args[1] : "1");
@@ -199,7 +199,7 @@ internal static class Cli
     }
 
     /// <summary>预览不同电量状态下的图标（正常 / 低电 / 充电）。</summary>
-    private static int IconVariants(string path)
+    private static int IconVariants(string path, int shape = 0)
     {
         var variants = new (string Name, BatteryReading Battery)[]
         {
@@ -208,6 +208,8 @@ internal static class Cli
             ("60% 充电中", new BatteryReading { Percent = 60, Charging = true }),
             ("百分比模式 85%", new BatteryReading { Percent = 85 }),
         };
+        IconFactory.Shape = (IconShape)shape;
+
         var sizes = new[] { 16, 24, 32 };
         const int zoom = 6;
         const int cell = 220;
@@ -242,7 +244,7 @@ internal static class Cli
                 {
                     IconFactory.Style = BatteryIconStyle.OutlinePlug;
                     bool percentMode = variants[row].Name.StartsWith("百分比模式");
-                    using var icon = IconFactory.Create(sizes[c], variants[row].Battery, percentMode, light);
+                    using var icon = IconFactory.Create(sizes[c], variants[row].Battery, light);
                     using var bitmap = icon.ToBitmap();
                     int drawSize = sizes[c] * zoom;
                     int x = labelWidth + c * cell + (cell - drawSize) / 2;
@@ -435,7 +437,7 @@ internal static class Cli
                 for (int c = 0; c < samples.Length; c++)
                 {
                     IconFactory.Style = styles[row].Style;
-                    using var icon = IconFactory.Create(samples[c].Size, samples[c].Battery, true, light);
+                    using var icon = IconFactory.Create(samples[c].Size, samples[c].Battery, light);
                     using var bitmap = icon.ToBitmap();
                     int drawSize = samples[c].Size * scale;
                     int x = labelWidth + c * cell + (cell - drawSize) / 2;
@@ -485,7 +487,7 @@ internal static class Cli
         {
             for (int column = 0; column < cases.Length; column++)
             {
-                using var icon = IconFactory.Create(sizes[row], cases[column].Battery, true, false);
+                using var icon = IconFactory.Create(sizes[row], cases[column].Battery, false);
                 using var cell = new Bitmap(cellWidth, cellHeight);
                 using (var cellGraphics = Graphics.FromImage(cell))
                 {
@@ -590,7 +592,7 @@ internal static class Cli
         {
             Visible = true,
             Text = "LogiBatteryTray 托盘测试",
-            Icon = IconFactory.Create(32, new BatteryReading { Percent = 85 }, true, false),
+            Icon = IconFactory.Create(32, new BatteryReading { Percent = 85 }, false),
         };
 
         var until = DateTime.Now.AddSeconds(2);

@@ -43,7 +43,6 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private readonly Control _dispatcher;
 
     private readonly ToolStripMenuItem _header;
-    private readonly ToolStripMenuItem _percentItem;
     private readonly ToolStripMenuItem _autostartItem;
     private readonly ToolStripMenuItem _notifyItem;
     private readonly ToolStripMenuItem _deviceMenu = new("显示设备");
@@ -79,7 +78,6 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _header = new ToolStripMenuItem("正在读取…") { Enabled = false };
         try { _header.Font = new Font(_header.Font, FontStyle.Bold); } catch { }
 
-        _percentItem = new ToolStripMenuItem("图标显示百分比", null, (_, _) => TogglePercent());
         _autostartItem = new ToolStripMenuItem("开机自动启动", null, (_, _) => ToggleAutostart());
         _notifyItem = new ToolStripMenuItem("低电量提醒", null, (_, _) => ToggleLowBatteryNotify());
 
@@ -98,7 +96,6 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _menu.Items.Add(_deviceMenu);
         _menu.Items.Add(new ToolStripMenuItem("贴回任务栏", null, (_, _) => DockWidgetToTaskbar()));
         _menu.Items.Add(new ToolStripSeparator());
-        _menu.Items.Add(_percentItem);
         _menu.Items.Add(_notifyItem);
         _menu.Items.Add(_autostartItem);
         _menu.Items.Add(BuildIntervalMenu());
@@ -119,7 +116,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             Visible = true,
             ContextMenuStrip = _menu,
             Text = "罗技鼠标电量",
-            Icon = IconFactory.Create(32, null, false, Theme.IsLightTaskbar()),
+            Icon = IconFactory.Create(32, null, Theme.IsLightTaskbar()),
         };
         _tray.MouseClick += OnTrayMouseClick;
         _tray.MouseDoubleClick += (_, _) => ShowDetails();
@@ -629,7 +626,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
     private void UpdateIcon(BatteryReading battery, bool online, string percentText)
     {
-        string iconKey = $"{battery?.Percent}|{battery?.Charging}|{online}|{_settings.ShowPercentInIcon}|{IconFactory.Shape}";
+        string iconKey = $"{battery?.Percent}|{battery?.Charging}|{online}|{IconFactory.Shape}";
         if (iconKey != _lastIconKey || _tray.Icon == null)
         {
             _lastIconKey = iconKey;
@@ -639,7 +636,6 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
                 _tray.Icon = IconFactory.Create(
                     Math.Max(32, SystemInformation.SmallIconSize.Width),
                     battery,
-                    _settings.ShowPercentInIcon,
                     Theme.IsLightTaskbar(),
                     !online);
                 old?.Dispose();
@@ -700,9 +696,6 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
     private void UpdateMenuState()
     {
-        _percentItem.Checked = _settings.ShowPercentInIcon;
-        // 圆环本身不显示数字，这个选项只对电池图标有意义
-        _percentItem.Visible = IconFactory.Shape == IconShape.Battery;
         _autostartItem.Checked = AppSettings.IsAutostartEnabled();
         _notifyItem.Checked = _settings.LowBatteryNotify;
 
@@ -723,23 +716,12 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
     }
 
-    private void TogglePercent()
-    {
-        _settings.ShowPercentInIcon = !_settings.ShowPercentInIcon;
-        _settings.Save();
-        UpdateMenuState();
-
-        var device = DisplayDevice;
-        UpdateIcon(device?.Battery, device?.Online == true, device?.Battery?.Percent is int p ? $"{p}%" : "--");
-    }
-
     private void ToggleLowBatteryNotify()
     {
         _settings.LowBatteryNotify = !_settings.LowBatteryNotify;
         _settings.Save();
         UpdateMenuState();
     }
-
     private void ToggleAutostart()
     {
         bool enable = !AppSettings.IsAutostartEnabled();

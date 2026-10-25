@@ -32,7 +32,6 @@ internal sealed class MainForm : Form, IMessageFilter
     private ScrollHost _devicePage;
     private string _cardsSignature = "";
 
-    private ToggleSwitch _percentToggle;
     private ToggleSwitch _autostartToggle;
     private ToggleSwitch _notifyToggle;
     private ValueButton _shapeButton;
@@ -54,8 +53,8 @@ internal sealed class MainForm : Form, IMessageFilter
 
     private static readonly int[] IntervalValues = { 1, 2, 5, 10, 30, 60 };
     private static readonly string[] IntervalTexts = { "1 秒（实时）", "2 秒", "5 秒", "10 秒", "30 秒", "1 分钟" };
-    private static readonly int[] ShapeValues = { 0, 1 };
-    private static readonly string[] ShapeTexts = { "圆环", "电池图标" };
+    private static readonly int[] ShapeValues = { 0, 1, 2 };
+    private static readonly string[] ShapeTexts = { "圆环", "电池图标", "百分比" };
     private static readonly int[] OfflineValues = { 60, 120, 300, 600 };
     private static readonly string[] OfflineTexts = { "1 分钟", "2 分钟", "5 分钟", "10 分钟" };
 
@@ -300,10 +299,9 @@ internal sealed class MainForm : Form, IMessageFilter
         AddValueRow(tray, S(46), "显示设备", out _deviceButton, "—");
         y += tray.Height + S(16);
 
-        var appearance = AddCard(page.Content, "外观", 2, y);
+        var appearance = AddCard(page.Content, "外观", 1, y);
         float row = S(46);
-        row = AddValueRow(appearance, row, "图标形状", out _shapeButton, "圆环");
-        AddToggleRow(appearance, row, "图标显示百分比（电池图标时生效）", out _percentToggle);
+        AddValueRow(appearance, row, "图标形状", out _shapeButton, "圆环");
 
         y += appearance.Height + S(16);
 
@@ -316,7 +314,6 @@ internal sealed class MainForm : Form, IMessageFilter
 
         _deviceButton.Click += (_, _) => CycleDevice();
 
-        _percentToggle.CheckedChanged += (_, _) => OnSettingChanged();
         _autostartToggle.CheckedChanged += (_, _) => OnSettingChanged();
         _notifyToggle.CheckedChanged += (_, _) => OnSettingChanged();
 
@@ -589,7 +586,6 @@ internal sealed class MainForm : Form, IMessageFilter
         var settings = _app.Settings;
         _autostartToggle.Checked = AppSettings.IsAutostartEnabled();
         _notifyToggle.Checked = settings.LowBatteryNotify;
-        _percentToggle.Checked = settings.ShowPercentInIcon;
 
         _intervalButton.Text = IntervalTexts[IndexOr(IntervalValues, settings.IntervalSeconds, 1)];
         _shapeButton.Text = ShapeTexts[IndexOr(ShapeValues, settings.IconShapeMode, 0)];
@@ -610,7 +606,6 @@ internal sealed class MainForm : Form, IMessageFilter
 
         var settings = _app.Settings;
         settings.LowBatteryNotify = _notifyToggle.Checked;
-        settings.ShowPercentInIcon = _percentToggle.Checked;
 
         AppSettings.SetAutostart(_autostartToggle.Checked);
         settings.Autostart = _autostartToggle.Checked;
@@ -821,7 +816,7 @@ internal sealed class MainForm : Form, IMessageFilter
             var previous = _ring.Image;
             try
             {
-                using var icon = IconFactory.Create(size, _battery, false, _light, device.Online == false);
+                using var icon = IconFactory.Create(size, _battery, _light, device.Online == false);
                 _ring.Image = icon.ToBitmap();
             }
             catch

@@ -13,7 +13,6 @@ internal sealed class AppSettings
 
     /// <summary>配置版本，用于迁移旧设置。</summary>
     public int SettingsVersion { get; set; }
-    public bool ShowPercentInIcon { get; set; }
     public bool Autostart { get; set; }
     public bool LowBatteryNotify { get; set; } = true;
     public string LastDeviceName { get; set; } = "罗技鼠标";
