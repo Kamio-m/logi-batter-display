@@ -135,7 +135,7 @@ internal static class Cli
             case "--ping": return PingIndex(args.Length > 1 ? args[1] : "1");
             case "--receiver": return ReceiverProbe();
             case "--popup-preview": return PopupPreview(args.Length > 1 ? args[1] : "popup.png");
-            case "--window-preview": return WindowPreview(args.Length > 1 ? args[1] : "window.png", args.Length > 2 ? int.Parse(args[2]) : 0);
+            case "--window-preview": return WindowPreview(args.Length > 1 ? args[1] : "window.png", args.Length > 2 ? int.Parse(args[2]) : 0, args);
             case "--verify-tray": return VerifyTray();
             default:
                 Console.WriteLine("用法: LogiBatteryTray.exe [--once | --features | --iconpreview <png> | --popup-preview <png> | --verify-tray]");
@@ -508,7 +508,7 @@ internal static class Cli
 
     /// <summary>把真实数据渲染到弹出面板并保存为图片。</summary>
     /// <summary>把主窗口渲染成图片，检查布局。</summary>
-    private static int WindowPreview(string path, int page = 0)
+    private static int WindowPreview(string path, int page = 0, string[] args = null)
     {
         Application.EnableVisualStyles();
 
@@ -516,7 +516,8 @@ internal static class Cli
         IconFactory.Shape = (IconShape)settings.IconShapeMode;
 
         var service = new BatteryService();
-        service.AddPreviewDevice("PRO X Wireless", new BatteryReading { Percent = 85 });
+        if (!(args.Length > 3 && args[3] == "empty"))
+            service.AddPreviewDevice("PRO X Wireless", new BatteryReading { Percent = 85 });
 
         using var form = new MainForm(new PreviewHost(settings, service));
         if (page >= 0 && page <= 2) form.SelectPage(page);

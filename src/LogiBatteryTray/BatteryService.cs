@@ -103,8 +103,9 @@ public sealed class BatteryService
 
                 if (_devices.Count == 0)
                 {
-                    // 扫不到（充电/休眠中）：保留上次记录，继续显示“休眠 · 上次 x%”
-                    _devices.AddRange(previous);
+                    // 接收器还插着（鼠标休眠/充电）：保留上次记录；
+                    // 接收器被拔掉则清空，界面显示“请连接设备”
+                    if (ReceiverConnected) _devices.AddRange(previous);
                     Problem = !ReceiverConnected
                         ? "请连接设备"
                         : previous.Count == 0 ? "未检测到鼠标" : "鼠标休眠中，移动鼠标即可刷新";
@@ -209,6 +210,7 @@ public sealed class BatteryService
     /// <summary>仅供预览：塞一个假设备。</summary>
     internal void AddPreviewDevice(string name, BatteryReading battery)
     {
+        ReceiverConnected = true;
         _devices.Add(new LogiDevice
         {
             Name = name,

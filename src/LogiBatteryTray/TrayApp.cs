@@ -54,6 +54,8 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private readonly List<(ToolStripMenuItem Item, int Shape)> _shapeItems = new();
     private readonly HashSet<ToolStripDropDown> _styledDropdowns = new();
     private readonly MouseActivityWatcher _mouseWatcher;
+    private readonly DeviceWatcher _deviceWatcher;
+    private DateTime _lastDeviceEvent = DateTime.MinValue;
 
     private MainForm _mainForm;
     private BatteryWidget _widget;
@@ -151,6 +153,10 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
         _mouseWatcher = new MouseActivityWatcher();
         _mouseWatcher.Activity += OnMouseActivity;
+
+        // USB/HID 插拔事件：拔掉接收器时立即刷新，不等下一个轮询
+        _deviceWatcher = new DeviceWatcher();
+        _deviceWatcher.Changed += OnDeviceChanged;
 
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SystemEvents.SessionSwitch += (_, _) => RefreshAsync();
@@ -411,6 +417,13 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         RefreshAsync();
     }
 
+    private void OnDeviceChanged()
+    {
+        // 插拔会连续来多条消息，节流一下
+        if (DateTime.Now - _lastDeviceEvent < TimeSpan.FromMilliseconds(250)) return;
+        _lastDeviceEvent = DateTime.Now;
+        RefreshAsync();
+    }
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
     {
         if (e.Mode == PowerModes.Resume) RefreshAsync();
@@ -617,6 +630,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _timer.Stop();
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         _mouseWatcher.Dispose();
+        _deviceWatcher.Dispose();
         _widget?.Close();
         _widget?.Dispose();
         _tray.Visible = false;
