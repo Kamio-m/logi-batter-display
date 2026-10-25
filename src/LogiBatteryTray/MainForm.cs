@@ -810,6 +810,9 @@ internal sealed class MainForm : Form, IMessageFilter
             _percent.Text = _battery?.Percent is int percent ? $"{percent}%" : "--";
             _percent.ForeColor = _online ? IconFactory.LevelColor(_battery!) : _secondary;
 
+            // 百分比样式下，左侧图标本身就是大号数字，右侧不再重复
+            _percent.Visible = IconFactory.Shape != IconShape.Percent;
+
             _updated.Text = device.UpdatedAt is DateTime updatedAt ? $"更新于 {updatedAt:HH:mm:ss}" : "";
 
             int size = (int)(88 * Dpi);
@@ -842,8 +845,15 @@ internal sealed class MainForm : Form, IMessageFilter
             _status.Location = new Point(x, (int)y);
             y = _status.Bottom + 2 * Dpi;
 
-            _percent.Location = new Point(x, (int)y);
-            y = _percent.Bottom + 2 * Dpi;
+            if (_percent.Visible)
+            {
+                _percent.Location = new Point(x, (int)y);
+                y = _percent.Bottom + 2 * Dpi;
+            }
+            else
+            {
+                y += 2 * Dpi;
+            }
 
             _updated.Location = new Point(x, (int)y);
         }
