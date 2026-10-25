@@ -164,6 +164,66 @@ internal sealed class ValueButton : Control
     }
 }
 
+/// <summary>圆角卡片：自带双缓冲和缩放重绘，避免拖动窗口时留下残影。</summary>
+internal sealed class CardPanel : Panel
+{
+    public CardPanel()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
+        BackColor = Color.Transparent;
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color Surface { get; set; } = Color.White;
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color Outline { get; set; } = Color.Gray;
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color Background { get; set; } = Color.Black;
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public float Radius { get; set; } = 14;
+
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        using var brush = new SolidBrush(Background);
+        e.Graphics.FillRectangle(brush, ClientRectangle);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        using var path = RoundedPath(new RectangleF(0.5f, 0.5f, Width - 1f, Height - 1f), Radius);
+        using (var fill = new SolidBrush(Surface))
+            g.FillPath(fill, path);
+
+        using (var pen = new Pen(Outline, 1f))
+            g.DrawPath(pen, path);
+    }
+
+    private static GraphicsPath RoundedPath(RectangleF rect, float radius)
+    {
+        var path = new GraphicsPath();
+        float diameter = Math.Min(radius * 2f, Math.Min(rect.Width, rect.Height));
+        if (diameter <= 1f) { path.AddRectangle(rect); return path; }
+
+        var arc = new RectangleF(rect.X, rect.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = rect.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = rect.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = rect.X;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+}
 /// <summary>可滚动页面：内容在 Content 里，右侧是自绘的细滚动条。</summary>
 internal sealed class ScrollHost : Panel
 {
@@ -174,9 +234,9 @@ internal sealed class ScrollHost : Panel
     public ScrollHost(Color background)
     {
         BackColor = background;
-        DoubleBuffered = true;
+        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.AllPaintingInWmPaint, true);
 
-        Content = new Panel { BackColor = Color.Transparent, Location = new Point(0, 0) };
+        Content = new Panel { BackColor = background, Location = new Point(0, 0) };
         Content.SizeChanged += (_, _) => { if (!_layingOut) Invalidate(); };
         Controls.Add(Content);
 
