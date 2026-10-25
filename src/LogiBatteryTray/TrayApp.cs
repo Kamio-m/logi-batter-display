@@ -109,7 +109,6 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(new ToolStripMenuItem("刷新", null, (_, _) => RefreshAsync()) { ShortcutKeyDisplayString = "F5" });
         _menu.Items.Add(_deviceMenu);
-        _menu.Items.Add(new ToolStripMenuItem("贴回任务栏", null, (_, _) => DockWidgetToTaskbar()));
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(_notifyItem);
         _menu.Items.Add(_autostartItem);
@@ -195,7 +194,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private ToolStripMenuItem BuildShapeMenu()
     {
         var root = new ToolStripMenuItem("图标形状");
-        foreach (var option in new (int Shape, string Text)[] { (0, "圆环"), (1, "电池图标") })
+        foreach (var option in new (int Shape, string Text)[] { (0, "圆环"), (1, "电池图标"), (2, "百分比") })
         {
             int shape = option.Shape;
             var item = new ToolStripMenuItem(option.Text, null, (_, _) =>
@@ -209,6 +208,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
                 UpdateIcon(current?.Battery, current?.Online == true,
                     current?.Battery?.Percent is int percent ? $"{percent}%" : "--");
                 _widget?.RefreshView();
+                _mainForm?.UpdateView();
             });
             _shapeItems.Add((item, shape));
             root.DropDownItems.Add(item);
