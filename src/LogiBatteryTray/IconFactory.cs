@@ -383,7 +383,7 @@ internal static class IconFactory
     private static void DrawRing(Graphics g, RectangleF rect, BatteryReading battery, bool lightTaskbar, bool offline)
     {
         float size = Math.Min(rect.Width, rect.Height);
-        float stroke = Math.Max(1.6f, size * 0.10f);
+        float stroke = Math.Max(1.5f, size * 0.075f);
         var circle = new RectangleF(
             rect.X + (rect.Width - size) / 2f + stroke / 2f,
             rect.Y + (rect.Height - size) / 2f + stroke / 2f,
@@ -414,12 +414,12 @@ internal static class IconFactory
         if (battery == null) return;
 
         string text = offline ? "--" : percent.ToString();
-        float fontSize = size * 0.66f;
+        float fontSize = size * 0.74f;
         Font font = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel);
 
         try
         {
-            while (fontSize > 4f && g.MeasureString(text, font).Width > size - stroke * 2f - 1f)
+            while (fontSize > 4f && g.MeasureString(text, font).Width > size - stroke * 1.4f)
             {
                 fontSize -= 0.5f;
                 font.Dispose();
