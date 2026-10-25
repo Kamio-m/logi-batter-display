@@ -150,7 +150,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         };
         trayCheck.Start();
 
-        _burstTimer = new System.Windows.Forms.Timer { Interval = 500 };
+        _burstTimer = new System.Windows.Forms.Timer { Interval = 250 };
         _burstTimer.Tick += (_, _) =>
         {
             RefreshAsync();
@@ -437,9 +437,18 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         bool logitech = devicePath.IndexOf("vid_046d", StringComparison.OrdinalIgnoreCase) >= 0;
         if (logitech) _service.Reset();
 
-        // 接收器刚插上时 HID 枚举需要一点时间，连续刷新几次
+        // 插上时直接用事件里的接口路径连接，比整轮枚举快很多
+        if (logitech && _service.TryConnect(devicePath))
+        {
+            Apply(true);
+            _burstRemaining = 2;
+            _burstTimer.Start();
+            return;
+        }
+
+        // 还没枚举好：马上刷一次，再每 250ms 补几次
         RefreshAsync();
-        _burstRemaining = 4;
+        _burstRemaining = 6;
         _burstTimer.Start();
     }
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)

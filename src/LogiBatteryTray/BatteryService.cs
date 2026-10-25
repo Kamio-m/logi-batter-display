@@ -40,6 +40,8 @@ public sealed class BatteryService
     private DateTime? _sampleTime;
     private int? _samplePercent;
     private DateTime _lastRediscover = DateTime.MinValue;
+    private byte _lastIndex = 1;
+    private string _lastPath;
 
     /// <summary>连续无响应超过这个时长，判定为设备已关闭（协议层无法区分关机与休眠）。</summary>
     public int PoweredOffAfterSeconds { get; set; } = 120;
@@ -221,6 +223,54 @@ public sealed class BatteryService
         });
     }
 
+    /// <summary>直接连事件里给出的 HID 接口，跳过整轮枚举（插接收器时用）。</summary>
+    public bool TryConnect(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+
+        try
+        {
+            using var hid = HidDevice.TryOpen(path);
+            if (hid == null) return false;
+
+            foreach (byte index in IndexOrder())
+            {
+                var protocol = new HidppDevice(hid, index);
+                if (!protocol.TryGetProtocolVersion(out double version, 300) || version < 2.0) continue;
+
+                var battery = protocol.ReadBattery(600);
+                if (battery == null) continue;
+
+                string name = protocol.ReadDeviceName(500);
+                if (string.IsNullOrWhiteSpace(name)) name = "罗技鼠标";
+
+                _lastIndex = index;
+                ReceiverConnected = true;
+                Problem = null;
+                LastUpdated = DateTime.Now;
+
+                _devices.Clear();
+                _devices.Add(new LogiDevice
+                {
+                    Name = name,
+                    Path = path,
+                    DeviceIndex = index,
+                    Battery = battery,
+                    Online = true,
+                    UpdatedAt = DateTime.Now,
+                    ProtocolVersion = version,
+                });
+
+                return true;
+            }
+        }
+        catch
+        {
+            // 回落正常发现流程
+        }
+
+        return false;
+    }
     /// <summary>接收器插拔后清空状态，强制下次刷新重新发现。</summary>
     public void Reset()
     {
@@ -229,6 +279,45 @@ public sealed class BatteryService
         Problem = null;
     }
 
+    /// <summary>发现顺序：上次成功的索引优先，然后 1-6。</summary>
+    private IEnumerable<byte> IndexOrder()
+    {
+        yield return _lastIndex;
+        for (byte index = 1; index <= 6; index++)
+            if (index != _lastIndex) yield return index;
+    }
+    /// <summary>试着在某个接口+索引上读出电量，成功就加入列表。</summary>
+    private bool ProbeCandidate(HidDevice hid, byte index, HashSet<string> seen, List<LogiDevice> found)
+    {
+        var protocol = new HidppDevice(hid, index);
+        if (!protocol.TryGetProtocolVersion(out double version, 300) || version < 2.0) return false;
+
+        var battery = protocol.ReadBattery(700);
+        if (battery == null) return false;
+
+        string name = protocol.ReadDeviceName(500);
+        if (string.IsNullOrWhiteSpace(name)) name = "罗技鼠标";
+
+        // 直连（插线）时设备对 1-6 每个序号都应答，按“接口+名称”去重
+        string key = hid.Path + "#" + name;
+        if (!seen.Add(key)) return false;
+
+        _lastIndex = index;
+        _lastPath = hid.Path;
+
+        found.Add(new LogiDevice
+        {
+            Name = name,
+            Path = hid.Path,
+            DeviceIndex = index,
+            Battery = battery,
+            Online = true,
+            UpdatedAt = DateTime.Now,
+            ProtocolVersion = version,
+        });
+
+        return true;
+    }
     /// <summary>扫描罗技 HID 接口，找出支持电量特性的鼠标。</summary>
     public void Discover()
     {
@@ -260,35 +349,34 @@ public sealed class BatteryService
             }
         }
 
+        // 上次可用的接口排到最前面
+        if (!string.IsNullOrEmpty(_lastPath))
+        {
+            int position = candidates.FindIndex(c => string.Equals(c.Path, _lastPath, StringComparison.OrdinalIgnoreCase));
+            if (position > 0)
+            {
+                var preferred = candidates[position];
+                candidates.RemoveAt(position);
+                candidates.Insert(0, preferred);
+            }
+        }
+
         try
         {
+            // 第一遍：每个接口只试上次成功的索引（绝大多数情况一次就中，~几十毫秒）
             foreach (var hid in candidates)
+                ProbeCandidate(hid, _lastIndex, seen, found);
+
+            // 第二遍：还没找到才扫 1-6（换了设备序号或插线直连时才会走到）
+            if (found.Count == 0)
             {
-                for (byte index = 1; index <= 6; index++)
+                foreach (var hid in candidates)
                 {
-                    var protocol = new HidppDevice(hid, index);
-                    if (!protocol.TryGetProtocolVersion(out double version) || version < 2.0) continue;
-
-                    var battery = protocol.ReadBattery();
-                    if (battery == null) continue;
-
-                    string name = protocol.ReadDeviceName();
-                    if (string.IsNullOrWhiteSpace(name)) name = "罗技鼠标";
-
-                    // 直连（插线）时设备对 1-6 每个序号都应答，按“接口+名称”去重
-                    string key = hid.Path + "#" + name;
-                    if (!seen.Add(key)) continue;
-
-                    found.Add(new LogiDevice
+                    for (byte index = 1; index <= 6; index++)
                     {
-                        Name = name,
-                        Path = hid.Path,
-                        DeviceIndex = index,
-                        Battery = battery,
-                        Online = true,
-                        UpdatedAt = DateTime.Now,
-                        ProtocolVersion = version,
-                    });
+                        if (index == _lastIndex) continue;
+                        if (ProbeCandidate(hid, index, seen, found)) break;
+                    }
                 }
             }
         }
