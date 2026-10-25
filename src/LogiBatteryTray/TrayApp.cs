@@ -51,6 +51,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly List<(ToolStripMenuItem Item, int Percent)> _opacityItems = new();
     private readonly List<(ToolStripMenuItem Item, int Radius)> _cornerItems = new();
     private readonly List<(ToolStripMenuItem Item, int Seconds)> _offlineItems = new();
+    private readonly List<(ToolStripMenuItem Item, int Shape)> _shapeItems = new();
     private readonly HashSet<ToolStripDropDown> _styledDropdowns = new();
     private readonly MouseActivityWatcher _mouseWatcher;
 
@@ -77,6 +78,7 @@ internal sealed class TrayApp : ApplicationContext
         _notifyItem = new ToolStripMenuItem("低电量提醒", null, (_, _) => ToggleLowBatteryNotify());
 
         IconFactory.Style = BatteryIconStyle.OutlinePlug;
+        IconFactory.Shape = (IconShape)_settings.IconShapeMode;
 
         _menu = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = true };
         _menu.Opened += (_, _) => MenuStyle.ApplyMenuWindow(_menu, _settings.MenuOpacity, _settings.MenuCorner);
@@ -90,6 +92,7 @@ internal sealed class TrayApp : ApplicationContext
         _menu.Items.Add(_autostartItem);
         _menu.Items.Add(BuildIntervalMenu());
         _menu.Items.Add(BuildPersonalizeMenu());
+        _menu.Items.Add(BuildShapeMenu());
         _menu.Items.Add(BuildOfflineMenu());
         _menu.Items.Add(new ToolStripSeparator());
         ApplyMenuStyle();
@@ -152,6 +155,29 @@ internal sealed class TrayApp : ApplicationContext
         RefreshAsync();
     }
 
+    private ToolStripMenuItem BuildShapeMenu()
+    {
+        var root = new ToolStripMenuItem("图标形状");
+        foreach (var option in new (int Shape, string Text)[] { (0, "圆环（显示百分比）"), (1, "电池图标") })
+        {
+            int shape = option.Shape;
+            var item = new ToolStripMenuItem(option.Text, null, (_, _) =>
+            {
+                _settings.IconShapeMode = shape;
+                IconFactory.Shape = (IconShape)shape;
+                _settings.Save();
+                UpdateMenuState();
+
+                var current = _service.Primary;
+                UpdateIcon(current?.Battery, current?.Online == true,
+                    current?.Battery?.Percent is int percent ? $"{percent}%" : "--");
+                _widget?.RefreshView();
+            });
+            _shapeItems.Add((item, shape));
+            root.DropDownItems.Add(item);
+        }
+        return root;
+    }
     private ToolStripMenuItem BuildOfflineMenu()
     {
         var root = new ToolStripMenuItem("关机判定");

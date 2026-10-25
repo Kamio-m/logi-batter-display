@@ -5,6 +5,14 @@ using System.Runtime.InteropServices;
 
 namespace LogiBatteryTray;
 
+public enum IconShape
+{
+    /// <summary>圆形进度环，中间显示百分比。</summary>
+    Ring,
+    /// <summary>系统电池图标。</summary>
+    Battery,
+}
+
 public enum BatteryIconStyle
 {
     /// <summary>白描边电池 + 电量内胆（低于 20% 内胆变黄，与系统一致）。</summary>
@@ -30,6 +38,9 @@ internal static class IconFactory
 
     public static BatteryIconStyle Style { get; set; } = BatteryIconStyle.OutlinePlug;
 
+    /// <summary>当前图标形状。</summary>
+    public static IconShape Shape { get; set; } = IconShape.Ring;
+
     /// <summary>电量低于该值时内胆变黄。</summary>
     public const int LowBatteryThreshold = 20;
 
@@ -50,10 +61,13 @@ internal static class IconFactory
         graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
         graphics.Clear(Color.Transparent);
 
-        if (Style == BatteryIconStyle.FilledCapsule)
-            DrawCapsule(graphics, new RectangleF(0, 0, size, size), battery, offline);
+        var bounds = new RectangleF(0, 0, size, size);
+        if (Shape == IconShape.Ring)
+            DrawRing(graphics, bounds, battery, lightTaskbar, offline);
+        else if (Style == BatteryIconStyle.FilledCapsule)
+            DrawCapsule(graphics, bounds, battery, offline);
         else
-            DrawFromSheet(graphics, new RectangleF(0, 0, size, size), battery, lightTaskbar, offline, showPercent);
+            DrawFromSheet(graphics, bounds, battery, lightTaskbar, offline, showPercent);
 
         IntPtr handle = bitmap.GetHicon();
         try
@@ -365,9 +379,72 @@ internal static class IconFactory
             font.Dispose();
         }
     }
+    /// <summary>圆形进度环：外圈进度 + 中间百分比。</summary>
+    private static void DrawRing(Graphics g, RectangleF rect, BatteryReading battery, bool lightTaskbar, bool offline)
+    {
+        float size = Math.Min(rect.Width, rect.Height);
+        float stroke = Math.Max(2f, size * 0.13f);
+        var circle = new RectangleF(
+            rect.X + (rect.Width - size) / 2f + stroke / 2f + 0.5f,
+            rect.Y + (rect.Height - size) / 2f + stroke / 2f + 0.5f,
+            size - stroke - 1f,
+            size - stroke - 1f);
+
+        Color outline = lightTaskbar ? Color.FromArgb(255, 32, 32, 36) : Color.FromArgb(255, 250, 250, 252);
+        Color accent = offline
+            ? Color.FromArgb(200, 140, 140, 146)
+            : battery?.Charging == true ? Color.FromArgb(255, 52, 199, 110)
+            : battery?.Percent is int low && low < LowBatteryThreshold ? Color.FromArgb(255, 240, 190, 20)
+            : outline;
+
+        using (var trackPen = new Pen(Color.FromArgb(70, outline), stroke) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            g.DrawEllipse(trackPen, circle);
+
+        int percent = battery?.Percent ?? 0;
+        float ratio = Math.Clamp(percent / 100f, 0f, 1f);
+
+        if (ratio > 0f && !offline)
+        {
+            using var arc = new GraphicsPath();
+            arc.AddArc(circle, -90f, Math.Max(2f, ratio * 360f));
+            using var arcPen = new Pen(accent, stroke) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            g.DrawPath(arcPen, arc);
+        }
+
+        if (battery == null) return;
+
+        string text = offline ? "--" : percent.ToString();
+        float fontSize = size * 0.34f;
+        Font font = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel);
+
+        try
+        {
+            while (fontSize > 4f && g.MeasureString(text, font).Width > size - stroke * 2f - 2f)
+            {
+                fontSize -= 0.5f;
+                font.Dispose();
+                font = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel);
+            }
+
+            using var brush = new SolidBrush(accent);
+            using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            var textRect = new RectangleF(rect.X, rect.Y - size * 0.02f, rect.Width, rect.Height);
+            g.DrawString(text, font, brush, textRect, format);
+        }
+        finally
+        {
+            font.Dispose();
+        }
+    }
     /// <summary>小卡里使用：与托盘图标同一套系统雪碧图。</summary>
     public static void DrawAuto(Graphics g, RectangleF rect, BatteryReading battery, bool lightTaskbar, bool offline)
     {
+        if (Shape == IconShape.Ring)
+        {
+            DrawRing(g, rect, battery, lightTaskbar, offline);
+            return;
+        }
+
         if (Style == BatteryIconStyle.FilledCapsule)
         {
             DrawCapsule(g, rect, battery, offline);
