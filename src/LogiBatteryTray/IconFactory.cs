@@ -412,31 +412,38 @@ internal static class IconFactory
             : battery?.Percent is int low && low < LowBatteryThreshold ? Color.FromArgb(255, 240, 190, 20)
             : lightTaskbar ? Color.FromArgb(255, 24, 24, 28) : Color.FromArgb(255, 252, 252, 255);
 
-        float size = Math.Min(rect.Width, rect.Height) * 0.88f;
+        float iconSize = Math.Min(rect.Width, rect.Height);
+        bool small = iconSize <= 26f;
+
+        // 小图标用位图字体渲染，边缘更清晰；大图标再用抗锯齿
+        float size = iconSize * (text.Length >= 3 ? 0.78f : 0.98f);
+        if (small) size = (float)Math.Round(size);
+
         Font font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
+        var typographic = StringFormat.GenericTypographic;
+        typographic.Alignment = StringAlignment.Center;
+        typographic.LineAlignment = StringAlignment.Center;
 
         try
         {
-            while (size > 4f && g.MeasureString(text, font).Width > rect.Width * 0.96f)
+            while (size > 4f && g.MeasureString(text, font, PointF.Empty, typographic).Width > rect.Width * 0.98f)
             {
-                size -= 0.5f;
+                size -= small ? 1f : 0.5f;
                 font.Dispose();
                 font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
             }
 
-            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-            using var brush = new SolidBrush(color);
-            using var format = new StringFormat
-            {
-                Alignment = StringAlignment.Center,
-                LineAlignment = StringAlignment.Center,
-            };
+            g.TextRenderingHint = small
+                ? TextRenderingHint.SingleBitPerPixelGridFit
+                : TextRenderingHint.AntiAliasGridFit;
 
-            g.DrawString(text, font, brush, rect, format);
+            using var brush = new SolidBrush(color);
+            g.DrawString(text, font, brush, rect, typographic);
         }
         finally
         {
             font.Dispose();
+            typographic.Dispose();
         }
     }
     /// <summary>小卡里使用：与托盘图标同一套系统雪碧图。</summary>
