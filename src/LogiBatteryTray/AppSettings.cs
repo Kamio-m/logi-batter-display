@@ -19,6 +19,9 @@ internal sealed class AppSettings
     public int WidgetX { get; set; } = int.MinValue;
     public int WidgetY { get; set; } = int.MinValue;
 
+    /// <summary>图标形状：0=圆环，1=电池。</summary>
+    public int IconShapeMode { get; set; }
+
     /// <summary>无响应多少秒后判定为“停用”。</summary>
     public int OfflineAsOffSeconds { get; set; } = 120;
 
