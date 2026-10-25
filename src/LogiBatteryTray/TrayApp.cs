@@ -158,7 +158,7 @@ internal sealed class TrayApp : ApplicationContext
     private ToolStripMenuItem BuildShapeMenu()
     {
         var root = new ToolStripMenuItem("图标形状");
-        foreach (var option in new (int Shape, string Text)[] { (0, "圆环（显示百分比）"), (1, "电池图标") })
+        foreach (var option in new (int Shape, string Text)[] { (0, "圆环"), (1, "电池图标") })
         {
             int shape = option.Shape;
             var item = new ToolStripMenuItem(option.Text, null, (_, _) =>
@@ -497,6 +497,8 @@ internal sealed class TrayApp : ApplicationContext
     private void UpdateMenuState()
     {
         _percentItem.Checked = _settings.ShowPercentInIcon;
+        // 圆环本身不显示数字，这个选项只对电池图标有意义
+        _percentItem.Visible = IconFactory.Shape == IconShape.Battery;
         _autostartItem.Checked = AppSettings.IsAutostartEnabled();
         _notifyItem.Checked = _settings.LowBatteryNotify;
 
