@@ -246,7 +246,7 @@ internal sealed class MainForm : Form, IMessageFilter
             var card = new DeviceCard(_cardColor, _border, _background, _fore, _secondary, _light)
             {
                 Location = new Point((int)S(28), (int)top),
-                Size = new Size(cardWidth, (int)S(140)),
+                Size = new Size(cardWidth, (int)S(152)),
                 Radius = S(14),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
             };
@@ -264,7 +264,7 @@ internal sealed class MainForm : Form, IMessageFilter
             _deviceList.Controls.Add(card);
             _deviceCards.Add(card);
 
-            top += S(140) + S(12);
+            top += S(152) + S(12);
         }
 
         _deviceList.Height = (int)Math.Max(top, S(10));
@@ -715,6 +715,7 @@ internal sealed class MainForm : Form, IMessageFilter
         private BatteryReading _battery;
         private bool _online;
         private bool _selected;
+        private bool _percentMode;
 
         public DeviceCard(Color surface, Color outline, Color background, Color fore, Color secondary, bool light)
         {
@@ -828,6 +829,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
             // 百分比样式下，左侧用文字标签显示大号数字（和界面字体一致），右侧不再重复
             bool percentShape = IconFactory.Shape == IconShape.Percent;
+            _percentMode = percentShape;
             _percent.Visible = !percentShape;
             _ring.Visible = !percentShape;
             _bigPercent.Visible = percentShape;
@@ -870,7 +872,7 @@ internal sealed class MainForm : Form, IMessageFilter
             _status.Location = new Point(x, (int)y);
             y = _status.Bottom + 2 * Dpi;
 
-            if (_percent.Visible)
+            if (!_percentMode)
             {
                 _percent.Location = new Point(x, (int)y);
                 y = _percent.Bottom + 2 * Dpi;
@@ -881,6 +883,16 @@ internal sealed class MainForm : Form, IMessageFilter
             }
 
             _updated.Location = new Point(x, (int)y);
+            _updated.Text = string.IsNullOrEmpty(_updated.Text) && _online ? "更新于 --:--:--" : _updated.Text;
+
+            // 标签移动后整块重绘，否则会留下旧文字的残影
+            Invalidate(true);
+        }
+
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            base.OnVisibleChanged(e);
+            if (Visible) LayoutLabels();
         }
 
         protected override void OnResize(EventArgs e)
@@ -904,6 +916,7 @@ internal sealed class MainForm : Form, IMessageFilter
         private readonly Color _accent;
         private bool _hover;
         private bool _selected;
+        private bool _percentMode;
 
         public NavButton(string glyph, string text, Color fore, Color muted, Color accent)
         {
