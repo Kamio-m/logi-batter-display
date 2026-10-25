@@ -383,7 +383,7 @@ internal static class IconFactory
     private static void DrawRing(Graphics g, RectangleF rect, BatteryReading battery, bool lightTaskbar, bool offline)
     {
         float size = Math.Min(rect.Width, rect.Height);
-        float stroke = Math.Max(1.5f, size * 0.075f);
+        float stroke = Math.Max(2.2f, size * 0.17f);
         var circle = new RectangleF(
             rect.X + (rect.Width - size) / 2f + stroke / 2f,
             rect.Y + (rect.Height - size) / 2f + stroke / 2f,
@@ -410,32 +410,8 @@ internal static class IconFactory
             using var arcPen = new Pen(accent, stroke) { StartCap = LineCap.Round, EndCap = LineCap.Round };
             g.DrawPath(arcPen, arc);
         }
-
-        if (battery == null) return;
-
-        string text = offline ? "--" : percent.ToString();
-        float fontSize = size * 0.74f;
-        Font font = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel);
-
-        try
-        {
-            while (fontSize > 4f && g.MeasureString(text, font).Width > size - stroke * 1.4f)
-            {
-                fontSize -= 0.5f;
-                font.Dispose();
-                font = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel);
-            }
-
-            using var brush = new SolidBrush(accent);
-            using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            var textRect = new RectangleF(rect.X, rect.Y - size * 0.02f, rect.Width, rect.Height);
-            g.DrawString(text, font, brush, textRect, format);
-        }
-        finally
-        {
-            font.Dispose();
-        }
     }
+
     /// <summary>小卡里使用：与托盘图标同一套系统雪碧图。</summary>
     public static void DrawAuto(Graphics g, RectangleF rect, BatteryReading battery, bool lightTaskbar, bool offline)
     {
