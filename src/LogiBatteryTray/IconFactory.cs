@@ -383,12 +383,12 @@ internal static class IconFactory
     private static void DrawRing(Graphics g, RectangleF rect, BatteryReading battery, bool lightTaskbar, bool offline)
     {
         float size = Math.Min(rect.Width, rect.Height);
-        float stroke = Math.Max(1.5f, size * 0.085f);
+        float stroke = Math.Max(1.6f, size * 0.10f);
         var circle = new RectangleF(
-            rect.X + (rect.Width - size) / 2f + stroke / 2f + 0.5f,
-            rect.Y + (rect.Height - size) / 2f + stroke / 2f + 0.5f,
-            size - stroke - 1f,
-            size - stroke - 1f);
+            rect.X + (rect.Width - size) / 2f + stroke / 2f,
+            rect.Y + (rect.Height - size) / 2f + stroke / 2f,
+            size - stroke,
+            size - stroke);
 
         Color outline = lightTaskbar ? Color.FromArgb(255, 32, 32, 36) : Color.FromArgb(255, 250, 250, 252);
         Color accent = offline
@@ -414,7 +414,7 @@ internal static class IconFactory
         if (battery == null) return;
 
         string text = offline ? "--" : percent.ToString();
-        float fontSize = size * 0.62f;
+        float fontSize = size * 0.66f;
         Font font = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel);
 
         try
