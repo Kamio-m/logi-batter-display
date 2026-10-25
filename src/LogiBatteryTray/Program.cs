@@ -533,6 +533,8 @@ internal static class Cli
 
         form.Show();
         Application.DoEvents();
+        form.Refresh();
+        Application.DoEvents();
 
         using var bitmap = new Bitmap(form.Width, form.Height);
         form.DrawToBitmap(bitmap, new Rectangle(0, 0, form.Width, form.Height));
@@ -568,6 +570,8 @@ internal static class Cli
         form.StartPosition = FormStartPosition.Manual;
         form.Location = new Point(-3000, -3000);
         form.Show();
+        Application.DoEvents();
+        form.Refresh();
         Application.DoEvents();
 
         using var bitmap = new Bitmap(form.Width, form.Height);
