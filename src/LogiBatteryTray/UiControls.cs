@@ -762,6 +762,79 @@ internal sealed class NumberField : Control
         return path;
     }
 }
+/// <summary>圆角深色文本框：内部包一个无边框 TextBox，保留输入法与光标。</summary>
+internal sealed class RoundedTextField : Control
+{
+    private readonly TextBox _box;
+
+    public RoundedTextField()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        BackColor = Color.FromArgb(26, 26, 29);
+
+        _box = new TextBox
+        {
+            BorderStyle = BorderStyle.None,
+            BackColor = BackColor,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI", 10f),
+        };
+        _box.TextChanged += (_, _) => { };
+        _box.GotFocus += (_, _) => Invalidate();
+        _box.LostFocus += (_, _) => Invalidate();
+        Controls.Add(_box);
+    }
+
+    public TextBox InnerBox => _box;
+
+    public override string Text
+    {
+        get => _box.Text;
+        set => _box.Text = value;
+    }
+
+    protected override void OnLayout(LayoutEventArgs e)
+    {
+        base.OnLayout(e);
+        if (_box == null) return;
+
+        _box.Location = new Point(12, (Height - _box.Height) / 2);
+        _box.Width = Math.Max(20, Width - 24);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        var rect = new RectangleF(0.5f, 0.5f, Width - 1f, Height - 1f);
+        using var path = Rounded(rect, 8);
+
+        using (var brush = new SolidBrush(BackColor))
+            g.FillPath(brush, path);
+
+        using (var pen = new Pen(_box.Focused ? Color.FromArgb(58, 130, 255) : Color.FromArgb(56, 56, 62), _box.Focused ? 1.6f : 1f))
+            g.DrawPath(pen, path);
+    }
+
+    private static GraphicsPath Rounded(RectangleF rect, float radius)
+    {
+        var path = new GraphicsPath();
+        float diameter = Math.Min(radius * 2f, Math.Min(rect.Width, rect.Height));
+        if (diameter <= 1f) { path.AddRectangle(rect); return path; }
+
+        var arc = new RectangleF(rect.X, rect.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = rect.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = rect.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = rect.X;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+}
 /// <summary>细长的自绘滚动条。</summary>
 internal sealed class SlimScrollBar : Control
 {

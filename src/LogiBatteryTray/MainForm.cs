@@ -1083,15 +1083,11 @@ internal sealed class MainForm : Form, IMessageFilter
             BackColor = Color.Transparent,
         };
 
-        var nameBox = new TextBox
+        var nameBox = new RoundedTextField
         {
             Text = candidates.Count > 0 ? candidates[0].Name : "键盘",
-            Location = P(26, 156),
-            Width = (int)S(328),
-            BorderStyle = BorderStyle.FixedSingle,
-            BackColor = _background,
-            ForeColor = _fore,
-            Font = new Font("Segoe UI", 10f),
+            Location = P(26, 152),
+            Size = new Size((int)S(328), (int)S(34)),
         };
 
         var daysLabel = new Label
