@@ -28,6 +28,9 @@ internal sealed class MainForm : Form, IMessageFilter
 
     private readonly List<DeviceCard> _deviceCards = new();
     private Panel _deviceList;
+    private Panel _manualList;
+    private readonly List<ManualCard> _manualCards = new();
+    private string _manualSignature = "";
     private Panel _actionsPanel;
     private Panel _emptyState;
     private ScrollHost _devicePage;
@@ -196,10 +199,19 @@ internal sealed class MainForm : Form, IMessageFilter
         };
         page.Content.Controls.Add(_deviceList);
 
+        _manualList = new Panel
+        {
+            Location = P(0, y),
+            Size = new Size(page.Content.Width, (int)S(10)),
+            BackColor = Color.Transparent,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+        };
+        page.Content.Controls.Add(_manualList);
+
         _actionsPanel = new Panel
         {
             Location = P(0, y),
-            Size = new Size(page.Content.Width, (int)S(78)),
+            Size = new Size(page.Content.Width, (int)S(116)),
             BackColor = Color.Transparent,
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
@@ -214,6 +226,10 @@ internal sealed class MainForm : Form, IMessageFilter
         var log = MakeButton(156, S(26), "打开日志", S(116));
         log.Parent = _actionsPanel;
         log.Click += (_, _) => _app.OpenLogFolderPublic();
+
+        var addManual = MakeButton(28, S(68), "添加估算设备", S(116));
+        addManual.Parent = _actionsPanel;
+        addManual.Click += (_, _) => AddManualDevice();
 
         // 未连接时覆盖整页
         _emptyState = new Panel { Dock = DockStyle.Fill, BackColor = _background, Visible = false };
@@ -286,9 +302,15 @@ internal sealed class MainForm : Form, IMessageFilter
 
         _deviceList.Height = (int)Math.Max(top, S(10));
 
+        if (_manualList != null)
+        {
+            _manualList.Top = _deviceList.Bottom + (int)S(12);
+            _manualList.Height = Math.Max((int)S(10), _manualList.Height);
+        }
+
         if (_actionsPanel != null)
         {
-            _actionsPanel.Top = _deviceList.Bottom + (int)S(18);
+            _actionsPanel.Top = (_manualList == null ? _deviceList.Bottom : _manualList.Bottom) + (int)S(18);
         }
     }
 
@@ -565,6 +587,205 @@ internal sealed class MainForm : Form, IMessageFilter
         return path;
     }
 
+    /// <summary>重建「估算设备」卡片（硬件读不到电量的设备）。</summary>
+    private void RebuildManualCards()
+    {
+        if (_manualList == null) return;
+
+        var devices = _app.Settings.ManualDevices ?? new List<ManualBatteryDevice>();
+        string signature = string.Join("|", devices.Select(d => $"{d.Name}#{d.LifeDays}#{d.LastChargedUtc.Ticks}"));
+
+        if (signature != _manualSignature)
+        {
+            _manualSignature = signature;
+
+            foreach (var card in _manualCards) { _manualList.Controls.Remove(card); card.Dispose(); }
+            _manualCards.Clear();
+
+            float top = 0;
+            foreach (var device in devices)
+            {
+                var card = new ManualCard(_cardColor, _border, _background, _fore, _secondary, _accent, device)
+                {
+                    Location = new Point((int)S(28), (int)top),
+                    Size = new Size(Math.Max((int)S(420), _manualList.Width - (int)S(56)), (int)S(112)),
+                    Radius = S(14),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                };
+
+                card.RefreshRequested += (_, _) =>
+                {
+                    device.LastChargedUtc = DateTime.UtcNow;
+                    _app.ApplySettingsFromWindow();
+                    _manualSignature = "";
+                    UpdateView();
+                };
+
+                card.DeleteRequested += (_, _) =>
+                {
+                    _app.Settings.ManualDevices.Remove(device);
+                    _app.ApplySettingsFromWindow();
+                    _manualSignature = "";
+                    UpdateView();
+                };
+
+                _manualList.Controls.Add(card);
+                _manualCards.Add(card);
+                top += S(112) + S(12);
+            }
+
+            _manualList.Height = (int)Math.Max(top, S(10));
+
+            if (_actionsPanel != null)
+                _actionsPanel.Top = _manualList.Bottom + (int)S(18);
+        }
+
+        foreach (var card in _manualCards) card.RefreshNow();
+    }
+
+    /// <summary>添加一台只能在软件里估算电量的设备。</summary>
+    private void AddManualDevice()
+    {
+        using var dialog = new Form
+        {
+            Text = "添加估算设备",
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            StartPosition = FormStartPosition.CenterParent,
+            ClientSize = new Size(360, 190),
+            BackColor = _background,
+            ForeColor = _fore,
+            Font = new Font("Segoe UI", 9f),
+            AutoScaleMode = AutoScaleMode.None,
+            MaximizeBox = false,
+            MinimizeBox = false,
+        };
+
+        var nameLabel = new Label { Text = "设备名称", AutoSize = true, Location = new Point(20, 22), ForeColor = _secondary, BackColor = Color.Transparent };
+        var nameBox = new TextBox { Text = "键盘", Location = new Point(20, 44), Width = 310 };
+
+        var daysLabel = new Label { Text = "续航天数（充满到没电）", AutoSize = true, Location = new Point(20, 82), ForeColor = _secondary, BackColor = Color.Transparent };
+        var daysBox = new NumericUpDown { Minimum = 1, Maximum = 3650, Value = 60, Location = new Point(20, 104), Width = 120 };
+
+        var ok = new Button { Text = "添加", Location = new Point(170, 145), Size = new Size(76, 30), DialogResult = DialogResult.OK, FlatStyle = FlatStyle.Flat };
+        var cancel = new Button { Text = "取消", Location = new Point(254, 145), Size = new Size(76, 30), DialogResult = DialogResult.Cancel, FlatStyle = FlatStyle.Flat };
+
+        dialog.Controls.AddRange(new Control[] { nameLabel, nameBox, daysLabel, daysBox, ok, cancel });
+        dialog.AcceptButton = ok;
+        dialog.CancelButton = cancel;
+
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+        string name = nameBox.Text.Trim();
+        if (name.Length == 0) name = "设备";
+
+        _app.Settings.ManualDevices.Add(new ManualBatteryDevice
+        {
+            Name = name,
+            LifeDays = (int)daysBox.Value,
+            LastChargedUtc = DateTime.UtcNow,
+        });
+
+        _app.Settings.SelectedDeviceKey = "manual:" + name;
+        _app.ApplySettingsFromWindow();
+        _manualSignature = "";
+        UpdateView();
+    }
+
+    /// <summary>估算设备卡片。</summary>
+    private sealed class ManualCard : CardPanel
+    {
+        private readonly Label _name;
+        private readonly Label _percent;
+        private readonly Label _detail;
+        private readonly ManualBatteryDevice _device;
+        private readonly Color _accent;
+
+        public event EventHandler RefreshRequested;
+        public event EventHandler DeleteRequested;
+
+        public ManualCard(Color surface, Color outline, Color background, Color fore, Color secondary, Color accent, ManualBatteryDevice device)
+        {
+            Surface = surface;
+            Outline = outline;
+            Background = background;
+            _device = device;
+            _accent = accent;
+
+            _name = new Label
+            {
+                Text = device.Name,
+                AutoSize = true,
+                Font = new Font("Segoe UI", 12.5f, FontStyle.Bold),
+                ForeColor = fore,
+                BackColor = Color.Transparent,
+                Location = new Point(20, 16),
+            };
+
+            _percent = new Label
+            {
+                AutoSize = true,
+                Font = new Font("Segoe UI", 22f, FontStyle.Bold),
+                ForeColor = accent,
+                BackColor = Color.Transparent,
+                Location = new Point(20, 44),
+            };
+
+            _detail = new Label
+            {
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = secondary,
+                BackColor = Color.Transparent,
+                Location = new Point(120, 58),
+            };
+
+            var refresh = new Button
+            {
+                Text = "刚充满",
+                Size = new Size(84, 30),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = accent,
+                ForeColor = Color.White,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            };
+            refresh.FlatAppearance.BorderColor = accent;
+            refresh.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
+
+            var remove = new Button
+            {
+                Text = "删除",
+                Size = new Size(64, 30),
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = fore,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            };
+            remove.Click += (_, _) => DeleteRequested?.Invoke(this, EventArgs.Empty);
+
+            Controls.Add(_name);
+            Controls.Add(_percent);
+            Controls.Add(_detail);
+            Controls.Add(refresh);
+            Controls.Add(remove);
+
+            Resize += (_, _) =>
+            {
+                refresh.Location = new Point(Width - 84 - 12, 16);
+                remove.Location = new Point(Width - 84 - 12 - 64 - 8, 16);
+            };
+
+            refresh.Location = new Point(Width - 84 - 12, 16);
+            remove.Location = new Point(Width - 84 - 12 - 64 - 8, 16);
+        }
+
+        public void RefreshNow()
+        {
+            var now = DateTime.UtcNow;
+            int percent = _device.RemainingPercent(now);
+            _percent.Text = $"{percent}%";
+            _percent.ForeColor = percent < 20 ? Color.FromArgb(240, 190, 20) : _accent;
+            _detail.Text = _device.Describe(now);
+        }
+    }
     private void ShowPage(int index)
     {
         for (int i = 0; i < _pages.Length; i++)
@@ -743,6 +964,8 @@ internal sealed class MainForm : Form, IMessageFilter
             if (device != null) card.SetDevice(device);
             card.Selected = card.Key == SelectedKey();
         }
+
+        RebuildManualCards();
 
         if (_deviceButton != null) RebuildDeviceOptions();
     }
