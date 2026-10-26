@@ -534,6 +534,7 @@ internal static class Cli
                 new() { Name = "华硕 MW107", LifeDays = 90, LastChargedUtc = DateTime.UtcNow.AddDays(-40) },
             };
             settings.SelectedDeviceKey = "manual:lanctj 键盘";
+            if (args != null && args.Contains("mousefirst")) settings.SelectedDeviceKey = "";
         }
 
         var accentArg = args?.FirstOrDefault(a => a.StartsWith("accent", StringComparison.OrdinalIgnoreCase));

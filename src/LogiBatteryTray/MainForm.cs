@@ -698,7 +698,12 @@ internal sealed class MainForm : Form, IMessageFilter
             _manualList.Parent?.PerformLayout();
         }
 
-        foreach (var card in _manualCards) card.RefreshNow();
+        string currentManualKey = _app.Settings.SelectedDeviceKey ?? "";
+        foreach (var card in _manualCards)
+        {
+            card.Selected = currentManualKey == "manual:" + card.DeviceName;
+            card.RefreshNow();
+        }
     }
 
     /// <summary>添加一台只能在软件里估算电量的设备。</summary>
@@ -767,6 +772,8 @@ internal sealed class MainForm : Form, IMessageFilter
 
         public event EventHandler RefreshRequested;
         public event EventHandler DeleteRequested;
+
+        public string DeviceName => _device.Name;
 
         public ManualCard(Color surface, Color outline, Color background, Color fore, Color secondary,
             Color accent, bool light, ManualBatteryDevice device)
