@@ -917,11 +917,14 @@ internal sealed class MainForm : Form, IMessageFilter
                 _status.Size = new Size(maxWidth, (int)(18 * dpi));
                 _detail.Size = new Size(maxWidth, (int)(16 * dpi));
 
-                int columnX = _percentShape ? (int)(22 * dpi) : textX;
+                bool percentShape = IconFactory.Shape == IconShape.Percent;
+                _percentShape = percentShape;
+
+                int columnX = percentShape ? (int)(22 * dpi) : textX;
                 _name.Location = new Point(columnX, (int)(18 * dpi));
                 _status.Location = new Point(columnX, _name.Bottom + (int)(2 * dpi));
 
-                if (_percentShape)
+                if (percentShape)
                 {
                     // 百分比样式：隐藏图标，数字与文字同一列
                     _icon.Visible = false;
@@ -1440,6 +1443,7 @@ internal sealed class MainForm : Form, IMessageFilter
         {
             if (_name == null) return;
 
+            _percentMode = IconFactory.Shape == IconShape.Percent;
             int x = (int)((_percentMode ? 22 : 126) * Dpi);
             float y = 18 * Dpi;
 
