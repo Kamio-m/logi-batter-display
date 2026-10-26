@@ -888,8 +888,10 @@ internal sealed class MainForm : Form, IMessageFilter
                 int reserve = (int)(84 + 16 + 64 + 8 + 16);
                 int maxWidth = Math.Max((int)(120 * dpi), Width - textX - reserve);
 
-                _icon.Location = new Point((int)(22 * dpi), (int)(22 * dpi));
-                _icon.Size = new Size((int)(88 * dpi), (int)(88 * dpi));
+                int iconSize = (int)((_selected ? 88 : 64) * dpi);
+                int iconInset = (int)((_selected ? 22 : 16) * dpi);
+                _icon.Location = new Point(iconInset, iconInset);
+                _icon.Size = new Size(iconSize, iconSize);
 
                 refresh.Size = new Size((int)(84 * dpi), (int)(32 * dpi));
                 remove.Size = new Size((int)(64 * dpi), (int)(32 * dpi));
@@ -943,6 +945,8 @@ internal sealed class MainForm : Form, IMessageFilter
                 _selected = value;
                 Outline = value ? _accent : _borderRestore;
                 _badge.Visible = value;
+                _relayout?.Invoke();
+                RefreshNow();
                 Invalidate();
             }
         }
@@ -1247,6 +1251,7 @@ internal sealed class MainForm : Form, IMessageFilter
         private readonly bool _light;
         private Color _accentColor;
         private BatteryReading _battery;
+        private LogiDevice _lastDevice;
         private bool _online;
         private bool _selected;
         private bool _percentShape;
@@ -1265,8 +1270,8 @@ internal sealed class MainForm : Form, IMessageFilter
 
             _ring = new PictureBox
             {
-                Location = new Point((int)(22 * Dpi), (int)(22 * Dpi)),
-                Size = new Size((int)(88 * Dpi), (int)(88 * Dpi)),
+                Location = new Point((int)(16 * Dpi), (int)(16 * Dpi)),
+                Size = new Size((int)(64 * Dpi), (int)(64 * Dpi)),
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = surface,
             };
@@ -1356,6 +1361,18 @@ internal sealed class MainForm : Form, IMessageFilter
                 Invalidate();
                 _badge.Visible = value;
                 _badge.Location = new Point(Width - _badge.Width - (int)(16 * Dpi), (int)(16 * Dpi));
+
+                // 选中：大图标；未选中：小图标靠左上
+                int size = (int)((_selected ? 88 : 64) * Dpi);
+                int inset = (int)((_selected ? 22 : 16) * Dpi);
+
+                _ring.Location = new Point(inset, inset);
+                _ring.Size = new Size(size, size);
+
+                _bigPercent.Location = _ring.Location;
+                _bigPercent.Size = _ring.Size;
+
+                if (_lastDevice != null) SetDevice(_lastDevice);
             }
         }
 
@@ -1365,6 +1382,7 @@ internal sealed class MainForm : Form, IMessageFilter
         {
             if (Key.Length == 0) Key = device.Path + "#" + device.Name;
 
+            _lastDevice = device;
             _battery = device.Battery;
             _online = device.Online && _battery != null;
 
@@ -1395,7 +1413,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
             _updated.Text = device.UpdatedAt is DateTime updatedAt ? $"更新于 {updatedAt:HH:mm:ss}" : "";
 
-            int size = (int)(88 * Dpi);
+            int size = Math.Max(32, _ring.Width);
             var previous = _ring.Image;
             try
             {
