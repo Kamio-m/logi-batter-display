@@ -38,6 +38,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private string _cardsSignature = "";
     private int _listTopY;
     private IconShape _lastShape = IconFactory.Shape;
+    private int _lastAccent;
 
     private ToggleSwitch _autostartToggle;
     private ToggleSwitch _notifyToggle;
@@ -1157,10 +1158,11 @@ internal sealed class MainForm : Form, IMessageFilter
         _devicePage.Content.Visible = receiverConnected;
         _emptyState.Visible = !receiverConnected;
 
-        // 样式变了就整组重建，避免两类卡片布局不同步
-        if (IconFactory.Shape != _lastShape)
+        // 样式或主题色变了就整组重建，避免两类卡片不同步
+        if (IconFactory.Shape != _lastShape || _lastAccent != _app.Settings.AccentIndex)
         {
             _lastShape = IconFactory.Shape;
+            _lastAccent = _app.Settings.AccentIndex;
             _cardsSignature = "";
             _manualSignature = "";
         }
