@@ -1104,17 +1104,16 @@ internal sealed class MainForm : Form, IMessageFilter
         };
 
         // 天 / 小时 / 分钟 三个独立输入框，自动加总
-        NumericUpDown MakeUnitBox(float x, int max, int value) => new()
+        NumberField MakeUnitBox(float x, int max, int value) => new()
         {
             Minimum = 0,
             Maximum = max,
             Value = value,
-            Location = P(x, 214),
-            Width = (int)S(68),
-            BorderStyle = BorderStyle.FixedSingle,
-            BackColor = _background,
-            ForeColor = _fore,
-            Font = new Font("Segoe UI", 10f),
+            Location = P(x, 212),
+            Size = new Size((int)S(68), (int)S(30)),
+            Surface = _background,
+            TextColor = _fore,
+            AccentColor = _accent,
         };
 
         var daysBox = MakeUnitBox(26, 3650, 60);
