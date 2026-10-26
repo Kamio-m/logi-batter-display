@@ -380,82 +380,98 @@ internal sealed class MainForm : Form, IMessageFilter
             : key;
     }
 
-    /// <summary>让卡片支持拖动：拖到窗口里放开即设为托盘显示设备。</summary>
+    /// <summary>轻量拖拽：按住卡片拖动，松手即把该设备设为托盘显示。</summary>
     private void AttachCardDrag(Control card, string key)
     {
         Point pressScreen = Point.Empty;
+        bool armed = false;
         bool dragging = false;
+        DragGhostForm ghost = null;
+        int offsetX = 20, offsetY = 20;
 
         void Down(object s, MouseEventArgs e)
         {
+            if (e.Button != MouseButtons.Left) return;
+
             pressScreen = Cursor.Position;
+            armed = true;
             dragging = false;
+            card.Capture = true;
         }
 
         void Move(object s, MouseEventArgs e)
         {
-            if (e.Button != MouseButtons.Left || dragging) return;
+            if (!armed) return;
 
-            var size = SystemInformation.DragSize;
-            if (Math.Abs(Cursor.Position.X - pressScreen.X) < size.Width / 2 &&
-                Math.Abs(Cursor.Position.Y - pressScreen.Y) < size.Height / 2) return;
-
-            dragging = true;
-            _suppressClick = true;
-
-            DragGhostForm ghost = null;
-            int offsetX = 20, offsetY = 20;
-            try
+            if (!dragging)
             {
-                var screenPoint = Cursor.Position;
-                var cardScreen = card.PointToScreen(e.Location);
-                offsetX = Math.Min(Math.Max(screenPoint.X - cardScreen.X, 0), Math.Max(1, card.Width));
-                offsetY = Math.Min(Math.Max(screenPoint.Y - cardScreen.Y, 0), Math.Max(1, card.Height));
+                var threshold = SystemInformation.DragSize;
+                if (Math.Abs(Cursor.Position.X - pressScreen.X) < threshold.Width / 2 &&
+                    Math.Abs(Cursor.Position.Y - pressScreen.Y) < threshold.Height / 2) return;
 
-                ghost = new DragGhostForm(DragGhostForm.Snapshot(card));
+                dragging = true;
+                _suppressClick = true;
+
+                var cardScreen = card.PointToScreen(Point.Empty);
+                offsetX = Math.Min(Math.Max(Cursor.Position.X - cardScreen.X, 0), Math.Max(1, card.Width / 2));
+                offsetY = Math.Min(Math.Max(Cursor.Position.Y - cardScreen.Y, 0), Math.Max(1, card.Height / 2));
+
+                ghost = new DragGhostForm(DragGhostForm.Snapshot(card)) { Opacity = 0.85 };
                 ghost.Show();
-                ghost.FollowCursor(offsetX, offsetY);
-                ghost.FadeIn(0.7);
-
-                card.GiveFeedback += OnGhostFeedback;
-
-                card.DoDragDrop(new DataObject(CardDragFormat, key), DragDropEffects.Move);
             }
-            finally
+
+            ghost?.FollowCursor(offsetX, offsetY);
+        }
+
+        void Up(object s, MouseEventArgs e)
+        {
+            if (!armed) return;
+
+            armed = false;
+            card.Capture = false;
+
+            if (!dragging) return;
+
+            dragging = false;
+
+            var dying = ghost;
+            ghost = null;
+            dying?.Close();
+
+            // 松手落在窗口范围内才生效
+            var screen = Cursor.Position;
+            bool inside = ClientRectangle.Contains(PointToClient(screen));
+
+            if (inside)
             {
-                card.GiveFeedback -= OnGhostFeedback;
-                if (ghost != null && !ghost.IsDisposed)
-                {
-                    ghost.FadeOutAndClose();
-                }
-                _suppressClick = false;
+                _app.Settings.SelectedDeviceKey = key;
+                _app.ApplySettingsFromWindow();
+                UpdateView();
             }
 
-            void OnGhostFeedback(object sender, GiveFeedbackEventArgs args)
-            {
-                args.UseDefaultCursors = false;
-                Cursor = Cursors.Hand;
-                if (ghost != null && !ghost.IsDisposed)
-                {
-                    ghost.FollowCursor(offsetX, offsetY);
-                }
-            }
+            _suppressClick = true;
         }
 
         card.MouseDown += Down;
         card.MouseMove += Move;
+        card.MouseUp += Up;
 
         foreach (Control child in card.Controls)
         {
             if (child is Button) continue;
             child.MouseDown += Down;
             child.MouseMove += Move;
+            child.MouseUp += Up;
         }
     }
     /// <summary>点设备卡片循环切换图标样式，所有设备一起变。</summary>
     private void CycleCardShape()
     {
-        if (_suppressClick) return;
+        if (_suppressClick)
+        {
+            _suppressClick = false;
+            return;
+        }
 
         int next = IconFactory.Shape switch
         {

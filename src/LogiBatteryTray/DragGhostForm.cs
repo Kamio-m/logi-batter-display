@@ -85,19 +85,34 @@ internal sealed class DragGhostForm : Form
         if (disposing) _image.Dispose();
     }
 
-    /// <summary>把控件渲染成位图（用作拖拽快照）。</summary>
-    public static Bitmap Snapshot(Control control)
+    /// <summary>把控件渲染成位图（按比例缩小，保证拖动流畅）。</summary>
+    public static Bitmap Snapshot(Control control, int maxWidth = 380)
     {
-        var bitmap = new Bitmap(Math.Max(1, control.Width), Math.Max(1, control.Height));
+        int width = Math.Max(1, control.Width);
+        int height = Math.Max(1, control.Height);
+
+        var full = new Bitmap(width, height);
         try
         {
-            control.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+            control.DrawToBitmap(full, new Rectangle(0, 0, width, height));
         }
         catch
         {
-            using var g = Graphics.FromImage(bitmap);
+            using var g = Graphics.FromImage(full);
             g.Clear(Color.FromArgb(40, 40, 45));
         }
-        return bitmap;
+
+        if (width <= maxWidth) return full;
+
+        int scaledHeight = Math.Max(1, (int)(height * (maxWidth / (double)width)));
+        var scaled = new Bitmap(maxWidth, scaledHeight);
+        using (var g = Graphics.FromImage(scaled))
+        {
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
+            g.DrawImage(full, 0, 0, maxWidth, scaledHeight);
+        }
+
+        full.Dispose();
+        return scaled;
     }
 }
