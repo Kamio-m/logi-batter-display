@@ -839,7 +839,7 @@ internal sealed class MainForm : Form, IMessageFilter
             {
                 AutoSize = false,
                 AutoEllipsis = true,
-                Font = new Font("Segoe UI", 9f),
+                Font = new Font("Segoe UI", 9.5f),
                 ForeColor = secondary,
                 BackColor = Color.Transparent,
             };
@@ -847,7 +847,7 @@ internal sealed class MainForm : Form, IMessageFilter
             _percent = new Label
             {
                 AutoSize = true,
-                Font = new Font("Segoe UI", 22f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 21f, FontStyle.Bold),
                 ForeColor = accent,
                 BackColor = Color.Transparent,
             };
@@ -856,7 +856,7 @@ internal sealed class MainForm : Form, IMessageFilter
             {
                 AutoSize = false,
                 AutoEllipsis = true,
-                Font = new Font("Segoe UI", 8f),
+                Font = new Font("Segoe UI", 8.5f),
                 ForeColor = secondary,
                 BackColor = Color.Transparent,
             };
@@ -937,14 +937,14 @@ internal sealed class MainForm : Form, IMessageFilter
                 {
                     // 百分比样式：隐藏图标，数字与文字同一列
                     _icon.Visible = false;
-                    _percent.Font = new Font("Segoe UI", _selected ? 30f : 26f, FontStyle.Bold);
+                    _percent.Font = new Font("Segoe UI", _selected ? 27f : 23f, FontStyle.Bold);
                     _percent.Location = new Point((int)(22 * dpi), _status.Bottom + (int)(2 * dpi));
                     _detail.Location = new Point((int)(22 * dpi), _percent.Bottom + (int)(2 * dpi));
                 }
                 else
                 {
                     _icon.Visible = true;
-                    _percent.Font = new Font("Segoe UI", 22f, FontStyle.Bold);
+                    _percent.Font = new Font("Segoe UI", 21f, FontStyle.Bold);
                     _percent.Location = new Point(textX, _status.Bottom + (int)(2 * dpi));
                     _detail.Location = new Point(textX, _percent.Bottom + (int)(2 * dpi));
                 }
@@ -1442,7 +1442,7 @@ internal sealed class MainForm : Form, IMessageFilter
             _ring.Visible = !percentShape;
             _bigPercent.Visible = false;
             _percent.Visible = true;
-            _percent.Font = new Font("Segoe UI", percentShape ? (_selected ? 30f : 26f) : 22f, FontStyle.Bold);
+            _percent.Font = new Font("Segoe UI", percentShape ? (_selected ? 27f : 23f) : 21f, FontStyle.Bold);
 
             _updated.Text = device.UpdatedAt is DateTime updatedAt ? $"更新于 {updatedAt:HH:mm:ss}" : "";
 
