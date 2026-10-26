@@ -991,30 +991,116 @@ internal sealed class MainForm : Form, IMessageFilter
         using var dialog = new Form
         {
             Text = "添加估算设备",
-            FormBorderStyle = FormBorderStyle.FixedDialog,
+            FormBorderStyle = FormBorderStyle.None,
             StartPosition = FormStartPosition.CenterParent,
-            ClientSize = new Size(360, 190),
+            ClientSize = new Size((int)S(380), (int)S(236)),
             BackColor = _background,
             ForeColor = _fore,
             Font = new Font("Segoe UI", 9f),
             AutoScaleMode = AutoScaleMode.None,
-            MaximizeBox = false,
-            MinimizeBox = false,
+            ShowInTaskbar = false,
         };
 
-        var nameLabel = new Label { Text = "设备名称", AutoSize = true, Location = new Point(20, 22), ForeColor = _secondary, BackColor = Color.Transparent };
-        var nameBox = new TextBox { Text = "键盘", Location = new Point(20, 44), Width = 310 };
+        // 圆角窗体
+        dialog.Region = new Region(RoundRectPath(new RectangleF(0, 0, dialog.Width, dialog.Height), S(16)));
 
-        var daysLabel = new Label { Text = "续航天数（充满到没电）", AutoSize = true, Location = new Point(20, 82), ForeColor = _secondary, BackColor = Color.Transparent };
-        var daysBox = new NumericUpDown { Minimum = 1, Maximum = 3650, Value = 60, Location = new Point(20, 104), Width = 120 };
+        var title = new Label
+        {
+            Text = "添加估算设备",
+            AutoSize = true,
+            Location = P(24, 20),
+            Font = new Font("Segoe UI", 13f, FontStyle.Bold),
+            ForeColor = _fore,
+            BackColor = Color.Transparent,
+        };
 
-        var ok = new Button { Text = "添加", Location = new Point(170, 145), Size = new Size(76, 30), DialogResult = DialogResult.OK, FlatStyle = FlatStyle.Flat };
-        var cancel = new Button { Text = "取消", Location = new Point(254, 145), Size = new Size(76, 30), DialogResult = DialogResult.Cancel, FlatStyle = FlatStyle.Flat };
+        var hint = new Label
+        {
+            Text = "读不到电量的设备，按续航天数估算剩余电量",
+            AutoSize = true,
+            Location = P(26, 52),
+            Font = new Font("Segoe UI", 8.5f),
+            ForeColor = _secondary,
+            BackColor = Color.Transparent,
+        };
 
-        dialog.Controls.AddRange(new Control[] { nameLabel, nameBox, daysLabel, daysBox, ok, cancel });
-        dialog.AcceptButton = ok;
-        dialog.CancelButton = cancel;
+        var nameLabel = new Label
+        {
+            Text = "设备名称",
+            AutoSize = true,
+            Location = P(26, 84),
+            ForeColor = _secondary,
+            BackColor = Color.Transparent,
+        };
 
+        var nameBox = new TextBox
+        {
+            Text = "键盘",
+            Location = P(26, 106),
+            Width = (int)S(328),
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = ButtonBack,
+            ForeColor = _fore,
+            Font = new Font("Segoe UI", 10f),
+        };
+
+        var daysLabel = new Label
+        {
+            Text = "续航天数（充满到没电）",
+            AutoSize = true,
+            Location = P(26, 144),
+            ForeColor = _secondary,
+            BackColor = Color.Transparent,
+        };
+
+        var daysBox = new NumericUpDown
+        {
+            Minimum = 1,
+            Maximum = 3650,
+            Value = 60,
+            Location = P(26, 166),
+            Width = (int)S(120),
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = ButtonBack,
+            ForeColor = _fore,
+            Font = new Font("Segoe UI", 10f),
+        };
+
+        var ok = new RoundedButton
+        {
+            Text = "添加",
+            Size = new Size((int)S(96), (int)S(36)),
+            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 24), (int)S(182)),
+            Surface = _accent,
+            HoverSurface = ControlPaint.Light(_accent, 0.08f),
+            TextColor = Color.White,
+        };
+
+        ok.Click += (_, _) => { dialog.DialogResult = DialogResult.OK; dialog.Close(); };
+
+        var cancel = new RoundedButton
+        {
+            Text = "取消",
+            Size = new Size((int)S(96), (int)S(36)),
+            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 96 + 24 + 8), (int)S(182)),
+            Surface = ButtonBack,
+            HoverSurface = ButtonHover,
+            TextColor = _fore,
+        };
+
+        cancel.Click += (_, _) => { dialog.DialogResult = DialogResult.Cancel; dialog.Close(); };
+
+        // 无边框窗体支持拖动
+        Point dragOffset = Point.Empty;
+        bool dragging = false;
+        void BeginDrag(object s, MouseEventArgs e) { dragging = true; dragOffset = e.Location; }
+        void DoDrag(object s, MouseEventArgs e) { if (dragging) dialog.Location = new Point(dialog.Location.X + e.X - dragOffset.X, dialog.Location.Y + e.Y - dragOffset.Y); }
+        void EndDrag(object s, MouseEventArgs e) { dragging = false; }
+        dialog.MouseDown += BeginDrag; dialog.MouseMove += DoDrag; dialog.MouseUp += EndDrag;
+        title.MouseDown += BeginDrag; title.MouseMove += DoDrag; title.MouseUp += EndDrag;
+        hint.MouseDown += BeginDrag; hint.MouseMove += DoDrag; hint.MouseUp += EndDrag;
+
+        dialog.Controls.AddRange(new Control[] { title, hint, nameLabel, nameBox, daysLabel, daysBox, ok, cancel });
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
         string name = nameBox.Text.Trim();
@@ -1373,6 +1459,23 @@ internal sealed class MainForm : Form, IMessageFilter
         }
 
         _devicePage?.PerformLayout();
+    }
+    private static GraphicsPath RoundRectPath(RectangleF rect, float radius)
+    {
+        var path = new GraphicsPath();
+        float diameter = Math.Min(radius * 2f, Math.Min(rect.Width, rect.Height));
+        if (diameter <= 1f) { path.AddRectangle(rect); return path; }
+
+        var arc = new RectangleF(rect.X, rect.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = rect.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = rect.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = rect.X;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
     }
     private void ShowPage(int index)
     {
