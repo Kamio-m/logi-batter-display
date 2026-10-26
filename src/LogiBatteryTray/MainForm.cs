@@ -993,7 +993,7 @@ internal sealed class MainForm : Form, IMessageFilter
             Text = "添加估算设备",
             FormBorderStyle = FormBorderStyle.None,
             StartPosition = FormStartPosition.CenterParent,
-            ClientSize = new Size((int)S(380), (int)S(296)),
+            ClientSize = new Size((int)S(380), (int)S(330)),
             BackColor = _cardColor,
             ForeColor = _fore,
             Font = new Font("Segoe UI", 9f),
@@ -1103,37 +1103,43 @@ internal sealed class MainForm : Form, IMessageFilter
             BackColor = Color.Transparent,
         };
 
-        var daysBox = new NumericUpDown
+        // 天 / 小时 / 分钟 三个独立输入框，自动加总
+        NumericUpDown MakeUnitBox(float x, int max, int value) => new()
         {
-            Minimum = 1,
-            Maximum = 99999,
-            Value = 60,
-            Location = P(26, 214),
-            Width = (int)S(120),
+            Minimum = 0,
+            Maximum = max,
+            Value = value,
+            Location = P(x, 214),
+            Width = (int)S(72),
             BorderStyle = BorderStyle.FixedSingle,
             BackColor = _background,
             ForeColor = _fore,
             Font = new Font("Segoe UI", 10f),
         };
 
-        var unitCombo = new RoundedDropDown
+        var daysBox = MakeUnitBox(26, 3650, 60);
+        var hoursBox = MakeUnitBox(134, 23, 0);
+        var minutesBox = MakeUnitBox(242, 59, 0);
+
+        Label MakeUnitLabel(float x, string text) => new()
         {
-            Surface = _background,
-            HoverSurface = ButtonHover,
-            TextColor = _fore,
-            AccentColor = _accent,
-            PopupBackground = _cardColor,
-            Size = new Size((int)S(96), (int)S(32)),
-            Location = P(156, 211),
+            Text = text,
+            AutoSize = true,
+            Location = P(x, 242),
+            ForeColor = _secondary,
+            BackColor = Color.Transparent,
+            Font = new Font("Segoe UI", 8.5f),
         };
-        unitCombo.SetItems(new[] { "天", "小时", "分钟" });
-        unitCombo.SelectedIndex = 0;
+
+        var daysUnit = MakeUnitLabel(26, "天");
+        var hoursUnit = MakeUnitLabel(134, "小时");
+        var minutesUnit = MakeUnitLabel(242, "分钟");
 
         var ok = new RoundedButton
         {
             Text = "添加",
             Size = new Size((int)S(96), (int)S(36)),
-            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 24), (int)S(242)),
+            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 24), (int)S(276)),
             Surface = _accent,
             HoverSurface = ControlPaint.Light(_accent, 0.08f),
             TextColor = Color.White,
@@ -1145,7 +1151,7 @@ internal sealed class MainForm : Form, IMessageFilter
         {
             Text = "取消",
             Size = new Size((int)S(96), (int)S(36)),
-            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 96 + 24 + 8), (int)S(242)),
+            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 96 + 24 + 8), (int)S(276)),
             Surface = ButtonBack,
             HoverSurface = ButtonHover,
             TextColor = _fore,
@@ -1172,7 +1178,11 @@ internal sealed class MainForm : Form, IMessageFilter
             };
         }
 
-        dialog.Controls.AddRange(new Control[] { title, hint, detectedLabel, detectedCombo, nameLabel, nameBox, daysLabel, daysBox, unitCombo, ok, cancel });
+        dialog.Controls.AddRange(new Control[]
+        {
+            title, hint, detectedLabel, detectedCombo, nameLabel, nameBox,
+            daysLabel, daysBox, hoursBox, minutesBox, daysUnit, hoursUnit, minutesUnit, ok, cancel,
+        });
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
         string name = nameBox.Text.Trim();
@@ -1189,13 +1199,9 @@ internal sealed class MainForm : Form, IMessageFilter
 
         name = unique;
 
-        double amount = (double)daysBox.Value;
-        double lifeDays = unitCombo.SelectedIndex switch
-        {
-            1 => amount / 24.0,      // 小时
-            2 => amount / 1440.0,    // 分钟
-            _ => amount,             // 天
-        };
+        double lifeDays = (double)daysBox.Value
+                          + (double)hoursBox.Value / 24.0
+                          + (double)minutesBox.Value / 1440.0;
 
         _app.Settings.ManualDevices.Add(new ManualBatteryDevice
         {
