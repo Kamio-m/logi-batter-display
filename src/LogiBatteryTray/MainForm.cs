@@ -993,7 +993,7 @@ internal sealed class MainForm : Form, IMessageFilter
             Text = "添加估算设备",
             FormBorderStyle = FormBorderStyle.None,
             StartPosition = FormStartPosition.CenterParent,
-            ClientSize = new Size((int)S(380), (int)S(330)),
+            ClientSize = new Size((int)S(380), (int)S(344)),
             BackColor = _cardColor,
             ForeColor = _fore,
             Font = new Font("Segoe UI", 9f),
@@ -1110,7 +1110,7 @@ internal sealed class MainForm : Form, IMessageFilter
             Maximum = max,
             Value = value,
             Location = P(x, 214),
-            Width = (int)S(72),
+            Width = (int)S(68),
             BorderStyle = BorderStyle.FixedSingle,
             BackColor = _background,
             ForeColor = _fore,
@@ -1120,26 +1120,48 @@ internal sealed class MainForm : Form, IMessageFilter
         var daysBox = MakeUnitBox(26, 3650, 60);
         var hoursBox = MakeUnitBox(134, 23, 0);
         var minutesBox = MakeUnitBox(242, 59, 0);
+        _ = 0;
 
         Label MakeUnitLabel(float x, string text) => new()
         {
             Text = text,
             AutoSize = true,
-            Location = P(x, 242),
+            Location = P(x, 220),
             ForeColor = _secondary,
             BackColor = Color.Transparent,
             Font = new Font("Segoe UI", 8.5f),
         };
 
-        var daysUnit = MakeUnitLabel(26, "天");
-        var hoursUnit = MakeUnitLabel(134, "小时");
-        var minutesUnit = MakeUnitLabel(242, "分钟");
+        var daysUnit = MakeUnitLabel(102, "天");
+        var hoursUnit = MakeUnitLabel(210, "小时");
+        var minutesUnit = MakeUnitLabel(318, "分钟");
+
+        // 实时合计提示
+        var total = new Label
+        {
+            AutoSize = true,
+            Location = P(26, 250),
+            Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+            ForeColor = _accent,
+            BackColor = Color.Transparent,
+        };
+
+        void UpdateTotal()
+        {
+            double life = (double)daysBox.Value + (double)hoursBox.Value / 24.0 + (double)minutesBox.Value / 1440.0;
+            total.Text = "合计续航：" + ManualBatteryDevice.FormatDuration(Math.Max(1.0 / 1440.0, life));
+        }
+
+        daysBox.ValueChanged += (_, _) => UpdateTotal();
+        hoursBox.ValueChanged += (_, _) => UpdateTotal();
+        minutesBox.ValueChanged += (_, _) => UpdateTotal();
+        UpdateTotal();
 
         var ok = new RoundedButton
         {
             Text = "添加",
             Size = new Size((int)S(96), (int)S(36)),
-            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 24), (int)S(276)),
+            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 24), (int)S(290)),
             Surface = _accent,
             HoverSurface = ControlPaint.Light(_accent, 0.08f),
             TextColor = Color.White,
@@ -1151,7 +1173,7 @@ internal sealed class MainForm : Form, IMessageFilter
         {
             Text = "取消",
             Size = new Size((int)S(96), (int)S(36)),
-            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 96 + 24 + 8), (int)S(276)),
+            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 96 + 24 + 8), (int)S(290)),
             Surface = ButtonBack,
             HoverSurface = ButtonHover,
             TextColor = _fore,
@@ -1181,7 +1203,7 @@ internal sealed class MainForm : Form, IMessageFilter
         dialog.Controls.AddRange(new Control[]
         {
             title, hint, detectedLabel, detectedCombo, nameLabel, nameBox,
-            daysLabel, daysBox, hoursBox, minutesBox, daysUnit, hoursUnit, minutesUnit, ok, cancel,
+            daysLabel, daysBox, hoursBox, minutesBox, daysUnit, hoursUnit, minutesUnit, total, ok, cancel,
         });
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
