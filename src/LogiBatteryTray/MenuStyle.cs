@@ -40,7 +40,11 @@ internal sealed class RoundedMenuRenderer : ToolStripProfessionalRenderer
         if (!e.Item.Selected || !e.Item.Enabled) return;
 
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        var bounds = new RectangleF(3, 1, e.Item.Width - 6, e.Item.Height - 2);
+        // 高亮条与菜单内边距对齐，左右留白一致
+        int pad = e.ToolStrip.Padding.Left;
+        float barLeft = Math.Max(2, pad - 2);
+        float barWidth = Math.Max(10, e.ToolStrip.Width - barLeft * 2);
+        var bounds = new RectangleF(barLeft, 1, barWidth, e.Item.Height - 2);
         using var path = MenuStyle.RoundedPath(bounds, Math.Max(4, Radius - 6));
         using var brush = new SolidBrush(Highlight);
         e.Graphics.FillPath(brush, path);
