@@ -711,6 +711,12 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         return _settings.ManualDevices?.FirstOrDefault(d => d.Name == name);
     }
 
+    /// <summary>把标题补齐到固定宽度，保证菜单宽度不随设备名变化。</summary>
+    private static string PadHeader(string text, int minWidth = 26)
+    {
+        if (text.Length >= minWidth) return text;
+        return text + new string('\u3000', minWidth - text.Length);
+    }
     private void Apply(bool ok)
     {
         // 明确选了估算设备 → 直接显示它（不看罗技设备在不在线）
@@ -720,7 +726,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             int manualPercent = explicitManual.RemainingPercent(DateTime.UtcNow);
             var reading = new BatteryReading { Percent = manualPercent };
 
-            _header.Text = $"{explicitManual.Name}   约 {manualPercent}%";
+            _header.Text = PadHeader($"{explicitManual.Name}   约 {manualPercent}%");
             _settings.LastDeviceName = explicitManual.Name;
 
             UpdateIcon(reading, true, $"{manualPercent}%");
@@ -743,7 +749,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
                 int estimated = manual.RemainingPercent(DateTime.UtcNow);
                 var estimate = new BatteryReading { Percent = estimated };
 
-                _header.Text = $"{manual.Name}   约 {estimated}%";
+                _header.Text = PadHeader($"{manual.Name}   约 {estimated}%");
                 _settings.LastDeviceName = manual.Name;
 
                 UpdateIcon(estimate, true, $"{estimated}%");
@@ -766,14 +772,14 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
         if (online)
         {
-            _header.Text = $"{device.Name}   {percentText}   {status}";
+            _header.Text = PadHeader($"{device.Name}   {percentText}   {status}");
             _settings.LastDeviceName = device.Name;
         }
         else if (device != null)
         {
             _header.Text = battery?.Percent != null
-                ? $"{device.Name}   {percentText}   {(device.PoweredOff ? "停用" : "休眠")}"
-                : $"{device.Name}   等待响应";
+                ? PadHeader($"{device.Name}   {percentText}   {(device.PoweredOff ? "停用" : "休眠")}")
+                : PadHeader($"{device.Name}   等待响应");
         }
         else
         {
