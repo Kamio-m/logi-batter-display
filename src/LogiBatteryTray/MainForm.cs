@@ -1071,6 +1071,9 @@ internal sealed class MainForm : Form, IMessageFilter
             : new[] { "（无可添加设备）" });
         detectedCombo.Enabled = candidates.Count > 0;
 
+        if (candidates.Count > 0)
+            detectedCombo.SelectedIndex = 0;
+
         var nameLabel = new Label
         {
             Text = "设备名称",
