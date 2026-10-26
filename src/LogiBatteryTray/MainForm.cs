@@ -1504,6 +1504,11 @@ internal sealed class MainForm : Form, IMessageFilter
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public bool SuppressExitOnClose { get; set; }
 
+    /// <summary>真正退出程序时才允许关闭窗口；平时点 × 只是隐藏到托盘。</summary>
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public bool AllowClose { get; set; }
+
     public void SelectPage(int index) => ShowPage(index);
 
     public void UpdateView()
@@ -1647,6 +1652,18 @@ internal sealed class MainForm : Form, IMessageFilter
         return true;
     }
 
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        base.OnFormClosing(e);
+
+        if (AllowClose || SuppressExitOnClose) return;
+        if (e.CloseReason != CloseReason.UserClosing) return;
+
+        // 点 × 只隐藏到托盘，程序继续运行
+        e.Cancel = true;
+        Hide();
+    }
+
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         Application.RemoveMessageFilter(this);
@@ -1667,8 +1684,7 @@ internal sealed class MainForm : Form, IMessageFilter
         }
         catch { }
 
-        // 现在是“窗口为主”，关掉窗口就退出程序（换配色重开时除外）
-        if (!SuppressExitOnClose) _app.ExitAppPublic();
+
         base.OnFormClosed(e);
     }
 
