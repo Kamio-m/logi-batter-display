@@ -302,7 +302,7 @@ internal sealed class MainForm : Form, IMessageFilter
             };
 
             card.SetDevice(device);
-            card.Selected = DeviceKeyOf(device) == SelectedKey();
+            card.Selected = MatchesKey(device, SelectedKey());
 
             void CycleStyle(object _, EventArgs __) => CycleCardShape();
 
@@ -604,6 +604,15 @@ internal sealed class MainForm : Form, IMessageFilter
     }
 
     /// <summary>把「托盘正在显示的那一组」排到最上面。</summary>
+    /// <summary>匹配设备 key：优先完全相等，路径变化时退化为按名字匹配。</summary>
+    private static bool MatchesKey(LogiDevice device, string key)
+    {
+        if (string.IsNullOrEmpty(key)) return false;
+        if (DeviceKeyOf(device) == key) return true;
+
+        int hash = key.LastIndexOf('#');
+        return hash >= 0 && hash + 1 < key.Length && device.Name == key[(hash + 1)..];
+    }
     private void ArrangeLists()
     {
         if (_deviceList == null || _manualList == null) return;
@@ -909,8 +918,8 @@ internal sealed class MainForm : Form, IMessageFilter
                 {
                     // 百分比样式：大数字占图标位置，说明行固定在第 4 行
                     _icon.Visible = false;
-                    _percent.Font = new Font("Segoe UI", _selected ? 26f : 22f, FontStyle.Bold);
-                    _percent.Location = new Point((int)((_selected ? 22 : 16) * dpi), (int)(26 * dpi));
+                    _percent.Font = new Font("Segoe UI", _selected ? 30f : 26f, FontStyle.Bold);
+                    _percent.Location = new Point((int)((_selected ? 22 : 16) * dpi), (int)(24 * dpi));
                     _detail.Location = new Point(textX, (int)(96 * dpi));
                 }
                 else
@@ -1149,7 +1158,7 @@ internal sealed class MainForm : Form, IMessageFilter
         string selectedKey = _app.Settings.SelectedDeviceKey ?? "";
         if (selectedKey.Length > 0 && selectedKey != "auto")
         {
-            var first = shown.FirstOrDefault(d => DeviceKeyOf(d) == selectedKey);
+            var first = shown.FirstOrDefault(d => MatchesKey(d, selectedKey));
             if (first != null)
             {
                 shown.Remove(first);
@@ -1168,7 +1177,9 @@ internal sealed class MainForm : Form, IMessageFilter
         {
             var device = shown.FirstOrDefault(d => DeviceKeyOf(d) == card.Key);
             if (device != null) card.SetDevice(device);
-            card.Selected = card.Key == SelectedKey();
+            card.Selected = device != null
+                ? MatchesKey(device, SelectedKey())
+                : card.Key == SelectedKey();
         }
 
         RebuildManualCards();
@@ -1462,7 +1473,7 @@ internal sealed class MainForm : Form, IMessageFilter
             int textX = (int)(126 * dpi);
             int available = Math.Max(size, textX - inset - (int)(8 * dpi));
 
-            _bigPercent.Font = new Font("Segoe UI", _selected ? 26f : 22f, FontStyle.Bold);
+            _bigPercent.Font = new Font("Segoe UI", _selected ? 30f : 26f, FontStyle.Bold);
             _bigPercent.Location = new Point(inset, (int)(20 * dpi));
             _bigPercent.Size = new Size(available, (int)(80 * dpi));
         }
