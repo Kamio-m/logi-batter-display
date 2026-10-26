@@ -1020,6 +1020,17 @@ internal sealed class MainForm : Form, IMessageFilter
         string name = nameBox.Text.Trim();
         if (name.Length == 0) name = "设备";
 
+        // 重名自动加序号，避免 key 冲突导致无法创建
+        string unique = name;
+        int suffix = 2;
+        while (_app.Settings.ManualDevices.Any(d => string.Equals(d.Name, unique, StringComparison.OrdinalIgnoreCase)))
+        {
+            unique = $"{name} {suffix}";
+            suffix++;
+        }
+
+        name = unique;
+
         _app.Settings.ManualDevices.Add(new ManualBatteryDevice
         {
             Name = name,
