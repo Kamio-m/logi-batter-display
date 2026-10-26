@@ -36,6 +36,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private Panel _emptyState;
     private ScrollHost _devicePage;
     private string _cardsSignature = "";
+    private int _listTopY;
 
     private ToggleSwitch _autostartToggle;
     private ToggleSwitch _notifyToggle;
@@ -194,6 +195,7 @@ internal sealed class MainForm : Form, IMessageFilter
         float y = PlaceTitle(page.Content, "设备", "点设备卡片可切换图标样式（圆环 / 电池图标 / 百分比）");
         y += S(12);
 
+        _listTopY = (int)y;
         _deviceList = new Panel
         {
             Location = P(0, y),
@@ -601,6 +603,38 @@ internal sealed class MainForm : Form, IMessageFilter
         return path;
     }
 
+    /// <summary>把「托盘正在显示的那一组」排到最上面。</summary>
+    private void ArrangeLists()
+    {
+        if (_deviceList == null || _manualList == null) return;
+
+        bool manualFirst = (_app.Settings.SelectedDeviceKey ?? "").StartsWith("manual:", StringComparison.OrdinalIgnoreCase)
+                           && _manualCards.Count > 0;
+
+        int gap = CardGap;
+        int top = _listTopY;
+
+        if (manualFirst)
+        {
+            _manualList.Top = top;
+            _deviceList.Top = _manualList.Bottom + gap;
+        }
+        else
+        {
+            _deviceList.Top = top;
+            _manualList.Top = _deviceList.Bottom + gap;
+        }
+
+        int bottom = Math.Max(_manualList.Bottom, _deviceList.Bottom);
+
+        if (_addManualButton != null)
+            _addManualButton.Top = bottom + gap;
+
+        if (_actionsPanel != null)
+            _actionsPanel.Top = (_addManualButton == null ? bottom : _addManualButton.Bottom) + gap;
+
+        _devicePage?.PerformLayout();
+    }
     /// <summary>重建「估算设备」卡片（硬件读不到电量的设备）。</summary>
     private void RebuildManualCards()
     {
@@ -616,6 +650,7 @@ internal sealed class MainForm : Form, IMessageFilter
             foreach (var card in _manualCards) { _manualList.Controls.Remove(card); card.Dispose(); }
             _manualCards.Clear();
 
+            string selectedManual = _app.Settings.SelectedDeviceKey ?? "";
             float top = 0;
             foreach (var device in devices)
             {
@@ -625,6 +660,7 @@ internal sealed class MainForm : Form, IMessageFilter
                     Size = new Size(Math.Max((int)S(420), _manualList.Width - (int)S(56)), (int)S(152)),
                     Radius = S(14),
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                    Selected = selectedManual == "manual:" + device.Name,
                 };
 
                 card.RefreshRequested += (_, _) =>
@@ -725,8 +761,27 @@ internal sealed class MainForm : Form, IMessageFilter
         private readonly Color _accent;
         private readonly bool _light;
 
+        private bool _selected;
+
         public event EventHandler RefreshRequested;
         public event EventHandler DeleteRequested;
+
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool Selected
+        {
+            get => _selected;
+            set
+            {
+                if (_selected == value) return;
+                _selected = value;
+                Outline = value ? _accent : _borderRestore;
+                OutlineWidth = value ? 2f : 1f;
+                Invalidate();
+            }
+        }
+
+        private readonly Color _borderRestore;
 
         public ManualCard(Color surface, Color outline, Color background, Color fore, Color secondary,
             Color accent, bool light, ManualBatteryDevice device)
@@ -737,6 +792,7 @@ internal sealed class MainForm : Form, IMessageFilter
             _device = device;
             _accent = accent;
             _light = light;
+            _borderRestore = outline;
 
             _icon = new PictureBox
             {
@@ -852,6 +908,20 @@ internal sealed class MainForm : Form, IMessageFilter
             _percent.ForeColor = percent < 20 ? Color.FromArgb(240, 190, 20) : _accent;
 
             PerformLayout();
+
+            bool percentShape = IconFactory.Shape == IconShape.Percent;
+            _icon.Visible = !percentShape;
+
+            if (percentShape)
+            {
+                _percent.Font = new Font("Segoe UI", 32f, FontStyle.Bold);
+                _percent.Location = new Point(26, 32);
+            }
+            else
+            {
+                _percent.Font = new Font("Segoe UI", 22f, FontStyle.Bold);
+                _percent.Location = new Point((int)(126 * (DeviceDpi / 96f)), (int)(_detail.Bottom + 4 * (DeviceDpi / 96f)));
+            }
 
             var previous = _icon.Image;
             try
@@ -1032,6 +1102,18 @@ internal sealed class MainForm : Form, IMessageFilter
             });
         }
 
+        // 把托盘正在显示的那台排到最前面
+        string selectedKey = _app.Settings.SelectedDeviceKey ?? "";
+        if (selectedKey.Length > 0 && selectedKey != "auto")
+        {
+            var first = shown.FirstOrDefault(d => DeviceKeyOf(d) == selectedKey);
+            if (first != null)
+            {
+                shown.Remove(first);
+                shown.Insert(0, first);
+            }
+        }
+
         string signature = string.Join("|", shown.Select(DeviceKeyOf));
         if (signature != _cardsSignature)
         {
@@ -1048,8 +1130,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
         RebuildManualCards();
 
-        // 内容高度变了要重新布局，否则滚动条不会出现
-        _devicePage?.PerformLayout();
+        ArrangeLists();
 
         if (_deviceButton != null) RebuildDeviceOptions();
     }

@@ -192,6 +192,10 @@ internal class CardPanel : Panel
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public float Radius { get; set; } = 14;
 
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public float OutlineWidth { get; set; } = 1f;
+
     protected override void OnPaintBackground(PaintEventArgs e)
     {
         using var brush = new SolidBrush(Background);
@@ -207,7 +211,7 @@ internal class CardPanel : Panel
         using (var fill = new SolidBrush(Surface))
             g.FillPath(fill, path);
 
-        using (var pen = new Pen(Outline, 1f))
+        using (var pen = new Pen(Outline, OutlineWidth))
             g.DrawPath(pen, path);
     }
 
