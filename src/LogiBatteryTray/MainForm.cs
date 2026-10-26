@@ -453,12 +453,40 @@ internal sealed class MainForm : Form, IMessageFilter
 
         if (ClientRectangle.Contains(PointToClient(Cursor.Position)))
         {
-            _app.Settings.SelectedDeviceKey = key;
+            // 目标卡片：如果在别张卡上松手，就按“互换”处理
+            string targetKey = CardKeyAt(Cursor.Position);
+            bool draggedIsCurrent = key == SelectedKey();
+
+            string next = key;
+            if (targetKey != null && targetKey != key && draggedIsCurrent)
+                next = targetKey;      // 把第一张拖到别人身上 → 让位
+            else if (targetKey == key)
+                next = key;
+
+            _app.Settings.SelectedDeviceKey = next;
             _app.ApplySettingsFromWindow();
             UpdateView();
         }
 
         _suppressClick = true;
+    }
+
+    /// <summary>找出鼠标落点上的卡片 key。</summary>
+    private string CardKeyAt(Point screenPoint)
+    {
+        foreach (var card in _deviceCards)
+        {
+            if (card.RectangleToScreen(card.ClientRectangle).Contains(screenPoint))
+                return card.Key;
+        }
+
+        foreach (var card in _manualCards)
+        {
+            if (card.RectangleToScreen(card.ClientRectangle).Contains(screenPoint))
+                return "manual:" + card.DeviceName;
+        }
+
+        return null;
     }
 
     private Control DeviceCardForDrag()
