@@ -696,6 +696,8 @@ internal sealed class MainForm : Form, IMessageFilter
                     Selected = selectedManual == "manual:" + device.Name,
                 };
 
+                card.StyleCycleRequested += (_, _) => CycleCardShape();
+
                 card.RefreshRequested += (_, _) =>
                 {
                     device.LastChargedUtc = DateTime.UtcNow;
@@ -807,6 +809,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
         public event EventHandler RefreshRequested;
         public event EventHandler DeleteRequested;
+        public event EventHandler StyleCycleRequested;
 
         public string DeviceName => _device.Name;
 
@@ -905,6 +908,16 @@ internal sealed class MainForm : Form, IMessageFilter
             Controls.Add(refresh);
             Controls.Add(remove);
             Controls.Add(_badge);
+
+            // 点卡片任意位置都可以切换图标样式（按钮除外）
+            void Cycle(object _, EventArgs __) => StyleCycleRequested?.Invoke(this, EventArgs.Empty);
+            Click += Cycle;
+            Cursor = Cursors.Hand;
+            foreach (var label in new Control[] { _icon, _name, _status, _percent, _detail, _badge })
+            {
+                label.Click += Cycle;
+                label.Cursor = Cursors.Hand;
+            }
 
             void Layout()
             {
