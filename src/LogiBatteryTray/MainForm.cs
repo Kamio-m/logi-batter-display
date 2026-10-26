@@ -39,6 +39,8 @@ internal sealed class MainForm : Form, IMessageFilter
     private int _listTopY;
     private IconShape _lastShape = IconFactory.Shape;
     private int _lastAccent;
+    private const string CardDragFormat = "LogiBatteryTray.DeviceKey";
+    private bool _suppressClick;
 
     private ToggleSwitch _autostartToggle;
     private ToggleSwitch _notifyToggle;
@@ -166,6 +168,23 @@ internal sealed class MainForm : Form, IMessageFilter
         ShowPage(0);
         LoadFromSettings();
         UpdateView();
+        AllowDrop = true;
+        DragEnter += (_, e) =>
+        {
+            if (e.Data != null && e.Data.GetDataPresent(CardDragFormat)) e.Effect = DragDropEffects.Move;
+        };
+        DragDrop += (_, e) =>
+        {
+            if (e.Data == null || !e.Data.GetDataPresent(CardDragFormat)) return;
+
+            string key = e.Data.GetData(CardDragFormat) as string;
+            if (string.IsNullOrEmpty(key)) return;
+
+            _app.Settings.SelectedDeviceKey = key;
+            _app.ApplySettingsFromWindow();
+            UpdateView();
+        };
+
         Application.AddMessageFilter(this);
     }
 
@@ -313,6 +332,8 @@ internal sealed class MainForm : Form, IMessageFilter
             card.SetDevice(device);
             card.Selected = MatchesKey(device, SelectedKey());
 
+            AttachCardDrag(card, DeviceKeyOf(device));
+
             void CycleStyle(object _, EventArgs __) => CycleCardShape();
 
             card.Click += CycleStyle;
@@ -359,9 +380,53 @@ internal sealed class MainForm : Form, IMessageFilter
             : key;
     }
 
+    /// <summary>让卡片支持拖动：拖到窗口里放开即设为托盘显示设备。</summary>
+    private void AttachCardDrag(Control card, string key)
+    {
+        Point pressScreen = Point.Empty;
+        bool dragging = false;
+
+        void Down(object s, MouseEventArgs e)
+        {
+            pressScreen = Cursor.Position;
+            dragging = false;
+        }
+
+        void Move(object s, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left || dragging) return;
+
+            var size = SystemInformation.DragSize;
+            if (Math.Abs(Cursor.Position.X - pressScreen.X) < size.Width / 2 &&
+                Math.Abs(Cursor.Position.Y - pressScreen.Y) < size.Height / 2) return;
+
+            dragging = true;
+            _suppressClick = true;
+            try
+            {
+                card.DoDragDrop(new DataObject(CardDragFormat, key), DragDropEffects.Move);
+            }
+            finally
+            {
+                _suppressClick = false;
+            }
+        }
+
+        card.MouseDown += Down;
+        card.MouseMove += Move;
+
+        foreach (Control child in card.Controls)
+        {
+            if (child is Button) continue;
+            child.MouseDown += Down;
+            child.MouseMove += Move;
+        }
+    }
     /// <summary>点设备卡片循环切换图标样式，所有设备一起变。</summary>
     private void CycleCardShape()
     {
+        if (_suppressClick) return;
+
         int next = IconFactory.Shape switch
         {
             IconShape.Ring => 1,
@@ -718,6 +783,7 @@ internal sealed class MainForm : Form, IMessageFilter
                 };
 
                 card.StyleCycleRequested += (_, _) => CycleCardShape();
+                AttachCardDrag(card, "manual:" + device.Name);
 
                 card.RefreshRequested += (_, _) =>
                 {
