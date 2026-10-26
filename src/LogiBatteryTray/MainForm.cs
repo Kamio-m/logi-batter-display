@@ -1354,11 +1354,11 @@ internal sealed class MainForm : Form, IMessageFilter
         if (_actionsPanel != null)
             _actionsPanel.Top = (_addManualButton == null ? _deviceList.Bottom : _addManualButton.Bottom) + CardGap;
 
-        // 第一张 = 托盘显示设备
-        if (order.Count > 0 && (_app.Settings.SelectedDeviceKey ?? "") != order[0])
+        // 托盘设备始终排到第一位
+        string wanted = _app.Settings.SelectedDeviceKey ?? "";
+        if (wanted.Length > 0 && wanted != "auto" && order.Count > 0 && order[0] != wanted)
         {
-            _app.Settings.SelectedDeviceKey = order[0];
-            _app.Settings.Save();
+            if (order.Remove(wanted)) order.Insert(0, wanted);
         }
 
         _devicePage?.PerformLayout();
