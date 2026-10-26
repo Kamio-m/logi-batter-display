@@ -707,7 +707,8 @@ internal sealed class MainForm : Form, IMessageFilter
             LastChargedUtc = DateTime.UtcNow,
         });
 
-        _app.Settings.SelectedDeviceKey = "manual:" + name;
+        if (_app.Service.Devices.Count == 0)
+            _app.Settings.SelectedDeviceKey = "manual:" + name;
         _app.ApplySettingsFromWindow();
         _manualSignature = "";
         UpdateView();

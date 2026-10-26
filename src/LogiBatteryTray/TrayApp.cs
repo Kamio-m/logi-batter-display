@@ -437,8 +437,9 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             _deviceMenu.DropDownItems.Add(item);
         }
 
-
         var devices = _service.Devices;
+        if ((_settings.ManualDevices?.Count ?? 0) > 0 && devices.Count > 0)
+            _deviceMenu.DropDownItems.Add(new ToolStripSeparator());
         if (devices.Count == 0)
         {
             _deviceMenu.DropDownItems.Add(new ToolStripMenuItem("（未检测到设备）") { Enabled = false });
@@ -639,8 +640,35 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         });
     }
 
+    /// <summary>用户在「显示设备」里明确选了估算设备时返回它。</summary>
+    private ManualBatteryDevice ExplicitManualDevice()
+    {
+        string key = _settings.SelectedDeviceKey ?? "";
+        if (!key.StartsWith("manual:", StringComparison.OrdinalIgnoreCase)) return null;
+
+        string name = key["manual:".Length..];
+        return _settings.ManualDevices?.FirstOrDefault(d => d.Name == name);
+    }
+
     private void Apply(bool ok)
     {
+        // 明确选了估算设备 → 直接显示它（不看罗技设备在不在线）
+        var explicitManual = ExplicitManualDevice();
+        if (explicitManual != null)
+        {
+            int manualPercent = explicitManual.RemainingPercent(DateTime.UtcNow);
+            var reading = new BatteryReading { Percent = manualPercent };
+
+            _header.Text = $"{explicitManual.Name}   约 {manualPercent}%   估算（{explicitManual.Describe(DateTime.UtcNow)}）";
+            _settings.LastDeviceName = explicitManual.Name;
+
+            UpdateIcon(reading, true, $"{manualPercent}%");
+            UpdateMenuState();
+            _widget?.UpdateView(null, false);
+            SetTrayText($"{explicitManual.Name} 约 {manualPercent}% · {explicitManual.Describe(DateTime.UtcNow)}");
+            return;
+        }
+
         var device = DisplayDevice;
 
         // 没有可用硬件设备时，用「估算设备」顶上
