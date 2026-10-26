@@ -619,7 +619,7 @@ internal sealed class MainForm : Form, IMessageFilter
                 var card = new ManualCard(_cardColor, _border, _background, _fore, _secondary, _accent, _light, device)
                 {
                     Location = new Point((int)S(28), (int)top),
-                    Size = new Size(Math.Max((int)S(420), _manualList.Width - (int)S(56)), (int)S(120)),
+                    Size = new Size(Math.Max((int)S(420), _manualList.Width - (int)S(56)), (int)S(152)),
                     Radius = S(14),
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 };
@@ -642,7 +642,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
                 _manualList.Controls.Add(card);
                 _manualCards.Add(card);
-                top += S(120) + S(12);
+                top += S(152) + S(12);
             }
 
             _manualList.Height = (int)Math.Max(top, S(10));
@@ -736,8 +736,8 @@ internal sealed class MainForm : Form, IMessageFilter
 
             _icon = new PictureBox
             {
-                Location = new Point(20, 24),
-                Size = new Size(72, 72),
+                Location = new Point(22, 22),
+                Size = new Size(88, 88),
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = surface,
             };
@@ -745,7 +745,7 @@ internal sealed class MainForm : Form, IMessageFilter
             _name = new Label
             {
                 AutoSize = true,
-                Location = new Point(106, 16),
+                Location = new Point(126, 18),
                 Font = new Font("Segoe UI", 12.5f, FontStyle.Bold),
                 ForeColor = fore,
                 BackColor = Color.Transparent,
@@ -754,7 +754,7 @@ internal sealed class MainForm : Form, IMessageFilter
             _detail = new Label
             {
                 AutoSize = true,
-                Location = new Point(106, 42),
+                Location = new Point(126, 42),
                 Font = new Font("Segoe UI", 9f),
                 ForeColor = secondary,
                 BackColor = Color.Transparent,
@@ -763,8 +763,8 @@ internal sealed class MainForm : Form, IMessageFilter
             _percent = new Label
             {
                 AutoSize = true,
-                Location = new Point(106, 66),
-                Font = new Font("Segoe UI", 21f, FontStyle.Bold),
+                Location = new Point(126, 66),
+                Font = new Font("Segoe UI", 22f, FontStyle.Bold),
                 ForeColor = accent,
                 BackColor = Color.Transparent,
             };
@@ -824,7 +824,7 @@ internal sealed class MainForm : Form, IMessageFilter
             var previous = _icon.Image;
             try
             {
-                using var icon = IconFactory.Create(72, new BatteryReading { Percent = percent }, _light);
+                using var icon = IconFactory.Create(88, new BatteryReading { Percent = percent }, _light);
                 _icon.Image = icon.ToBitmap();
             }
             catch
