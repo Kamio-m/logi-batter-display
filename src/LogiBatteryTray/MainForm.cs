@@ -29,7 +29,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private readonly List<DeviceCard> _deviceCards = new();
     private Panel _deviceList;
     private Panel _manualList;
-    private Button _addManualButton;
+    private RoundedButton _addManualButton;
     private readonly List<ManualCard> _manualCards = new();
     private string _manualSignature = "";
     private Panel _actionsPanel;
@@ -68,7 +68,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private readonly Color _fore;
     private readonly Color _secondary;
     private Color _accent;
-    private readonly List<Button> _accentButtons = new();
+    private readonly List<RoundedButton> _accentButtons = new();
 
     private bool _loading;
 
@@ -248,16 +248,15 @@ internal sealed class MainForm : Form, IMessageFilter
         };
         page.Content.Controls.Add(_manualList);
 
-        _addManualButton = new Button
+        _addManualButton = new RoundedButton
         {
             Text = "＋ 添加估算设备",
             Size = new Size((int)S(148), (int)S(36)),
-            FlatStyle = FlatStyle.Flat,
-            BackColor = _cardColor,
-            ForeColor = _accent,
+            Surface = _cardColor,
+            HoverSurface = ButtonHover,
+            TextColor = _accent,
             Visible = false,
         };
-        _addManualButton.FlatAppearance.BorderColor = _border;
         _addManualButton.Click += (_, _) => AddManualDevice();
         page.Content.Controls.Add(_addManualButton);
 
@@ -331,7 +330,7 @@ internal sealed class MainForm : Form, IMessageFilter
             {
                 Location = new Point((int)S(28), (int)top),
                 Size = new Size(cardWidth, (int)S(152)),
-                Radius = S(14),
+                Radius = S(18),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
             };
 
@@ -647,7 +646,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private CardPanel NewCard(int width, int height) => new()
     {
         Size = new Size(width, height),
-        Radius = S(14),
+        Radius = S(18),
         Surface = _cardColor,
         Outline = _border,
         Background = _background,
@@ -792,18 +791,18 @@ internal sealed class MainForm : Form, IMessageFilter
         return label;
     }
 
-    private Button MakeButton(float x, float y, string text, float width, bool primary = false)
+    private RoundedButton MakeButton(float x, float y, string text, float width, bool primary = false)
     {
-        var button = new Button
+        var button = new RoundedButton
         {
             Text = text,
             Location = P(x, y),
             Size = new Size((int)width, (int)S(34)),
-            FlatStyle = FlatStyle.Flat,
-            BackColor = primary ? _accent : ButtonBack,
-            ForeColor = primary ? Color.White : _fore,
+            Surface = primary ? _accent : ButtonBack,
+            HoverSurface = primary ? ControlPaint.Light(_accent, 0.08f) : ButtonHover,
+            TextColor = primary ? Color.White : _fore,
         };
-        button.FlatAppearance.BorderColor = _border;
+
         if (primary) _accentButtons.Add(button);
         return button;
     }
@@ -928,7 +927,7 @@ internal sealed class MainForm : Form, IMessageFilter
                 {
                     Location = new Point((int)S(28), (int)top),
                     Size = new Size(Math.Max((int)S(420), _manualList.Width - (int)S(56)), (int)S(152)),
-                    Radius = S(14),
+                    Radius = S(18),
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                     Selected = selectedManual == "manual:" + device.Name,
                 };
@@ -1106,28 +1105,25 @@ internal sealed class MainForm : Form, IMessageFilter
                 BackColor = Color.Transparent,
             };
 
-            var refresh = new Button
+            var refresh = new RoundedButton
             {
                 Text = "刚充满",
-                Size = new Size(84, 32),   // 实际尺寸在 Layout 里按 DPI 设置
-                FlatStyle = FlatStyle.Flat,
-                BackColor = accent,
-                ForeColor = Color.White,
+                Size = new Size(84, 32),
+                Surface = accent,
+                HoverSurface = ControlPaint.Light(accent, 0.08f),
+                TextColor = Color.White,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
             };
-            refresh.FlatAppearance.BorderColor = accent;
             refresh.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
 
-            var remove = new Button
+            var remove = new RoundedButton
             {
                 Text = "删除",
                 Size = new Size(64, 32),
-                FlatStyle = FlatStyle.Flat,
-                ForeColor = fore,
-                BackColor = light ? Color.FromArgb(243, 243, 247) : Color.FromArgb(48, 48, 54),
+                Surface = light ? Color.FromArgb(243, 243, 247) : Color.FromArgb(48, 48, 54),
+                TextColor = fore,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
             };
-            remove.FlatAppearance.BorderColor = outline;
             remove.Click += (_, _) => DeleteRequested?.Invoke(this, EventArgs.Empty);
 
             _badge = new Label
@@ -1392,7 +1388,7 @@ internal sealed class MainForm : Form, IMessageFilter
         _autostartToggle.OnColor = _accent;
         _notifyToggle.OnColor = _accent;
 
-        foreach (var button in _accentButtons) button.BackColor = _accent;
+        foreach (var button in _accentButtons) { button.Surface = _accent; button.Invalidate(); }
         foreach (var card in _deviceCards) card.AccentColor = _accent;
         foreach (var card in _manualCards) card.ForceRefresh();
 

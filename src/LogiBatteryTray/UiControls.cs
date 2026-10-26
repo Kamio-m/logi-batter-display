@@ -322,6 +322,81 @@ internal sealed class ScrollHost : Panel
     }
 }
 
+/// <summary>圆角按钮：胶囊形，带悬停/按下反馈。</summary>
+internal sealed class RoundedButton : Control
+{
+    private bool _hover;
+    private bool _pressed;
+
+    public RoundedButton()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
+        Cursor = Cursors.Hand;
+        Font = new Font("Segoe UI", 9f);
+        Size = new Size(100, 34);
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color Surface { get; set; } = Color.FromArgb(48, 48, 54);
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color HoverSurface { get; set; } = Color.FromArgb(56, 56, 63);
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color TextColor { get; set; } = Color.White;
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public float RadiusRatio { get; set; } = 0.5f;
+
+    protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { _hover = false; _pressed = false; Invalidate(); base.OnMouseLeave(e); }
+    protected override void OnMouseDown(MouseEventArgs e) { _pressed = true; Invalidate(); base.OnMouseDown(e); }
+    protected override void OnMouseUp(MouseEventArgs e) { _pressed = false; Invalidate(); base.OnMouseUp(e); }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        var color = _pressed ? ControlPaint.Dark(_hover ? HoverSurface : Surface, 0.05f)
+                  : _hover ? HoverSurface
+                  : Surface;
+
+        var rect = new RectangleF(0.5f, 0.5f, Width - 1f, Height - 1f);
+        float radius = Math.Max(2f, Height * (float)RadiusRatio);
+
+        using var path = RoundedPath(rect, radius);
+        using (var brush = new SolidBrush(color))
+            g.FillPath(brush, path);
+
+        TextRenderer.DrawText(g, Text, Font, new Rectangle(0, 0, Width, Height), TextColor,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+    }
+
+    private static GraphicsPath RoundedPath(RectangleF rect, float radius)
+    {
+        var path = new GraphicsPath();
+        float diameter = Math.Min(radius * 2f, Math.Min(rect.Width, rect.Height));
+        if (diameter <= 1f) { path.AddRectangle(rect); return path; }
+
+        var arc = new RectangleF(rect.X, rect.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = rect.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = rect.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = rect.X;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+}
 /// <summary>细长的自绘滚动条。</summary>
 internal sealed class SlimScrollBar : Control
 {
