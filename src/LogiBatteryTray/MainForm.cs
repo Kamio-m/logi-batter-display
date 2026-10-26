@@ -1117,8 +1117,8 @@ internal sealed class MainForm : Form, IMessageFilter
         };
 
         var daysBox = MakeUnitBox(26, 3650, 0);
-        var hoursBox = MakeUnitBox(134, 23, 0);
-        var minutesBox = MakeUnitBox(242, 59, 0);
+        var hoursBox = MakeUnitBox(134, 100000, 0);
+        var minutesBox = MakeUnitBox(242, 100000, 0);
         _ = 0;
 
         Label MakeUnitLabel(float x, string text) => new()
@@ -1145,8 +1145,35 @@ internal sealed class MainForm : Form, IMessageFilter
             BackColor = Color.Transparent,
         };
 
+        bool normalizing = false;
+
+        // 自动进位：分钟满 60 进小时，小时满 24 进天
+        void Normalize()
+        {
+            if (normalizing) return;
+            normalizing = true;
+            try
+            {
+                long totalMinutes = (long)daysBox.Value * 1440 + (long)hoursBox.Value * 60 + minutesBox.Value;
+
+                int days = (int)(totalMinutes / 1440);
+                int hours = (int)((totalMinutes % 1440) / 60);
+                int minutes = (int)(totalMinutes % 60);
+
+                if (daysBox.Value != days) daysBox.Value = Math.Min(3650, days);
+                if (hoursBox.Value != hours) hoursBox.Value = hours;
+                if (minutesBox.Value != minutes) minutesBox.Value = minutes;
+            }
+            finally
+            {
+                normalizing = false;
+            }
+        }
+
         void UpdateTotal()
         {
+            Normalize();
+
             double life = (double)daysBox.Value + (double)hoursBox.Value / 24.0 + (double)minutesBox.Value / 1440.0;
             total.Text = life <= 0
                 ? "合计续航：未填写"
