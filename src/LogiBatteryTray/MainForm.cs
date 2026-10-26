@@ -616,30 +616,30 @@ internal sealed class MainForm : Form, IMessageFilter
         page.Content.Controls.Add(card);
 
         // 应用名
-        var title = AddLabel(card, 28, 20, "LogiBatteryTray", 16f, FontStyle.Bold, _fore);
+        var title = AddLabel(card, 28, 16, "LogiBatteryTray", 16f, FontStyle.Bold, _fore);
 
         // 版本 + 构建时间（同一行）
         string buildText = "";
         try { buildText = System.IO.File.GetLastWriteTime(Application.ExecutablePath).ToString("yyyy-MM-dd HH:mm"); } catch { }
 
-        var meta = AddLabel(card, 30, title.Bottom + S(3),
+        var meta = AddLabel(card, 30, title.Bottom + S(1),
             $"版本 {typeof(MainForm).Assembly.GetName().Version?.ToString(3)}　·　构建 {buildText}",
             9f, FontStyle.Regular, _secondary);
 
         // 说明
-        var desc = AddLabel(card, 30, meta.Bottom + S(8),
+        var desc = AddLabel(card, 30, meta.Bottom + S(4),
             "在任务栏显示罗技鼠标电量，直接读取 HID++ 2.0，不需要 G HUB。",
             9f, FontStyle.Regular, _fore);
 
-        var data = AddLabel(card, 30, desc.Bottom + S(4),
+        var data = AddLabel(card, 30, desc.Bottom + S(2),
             @"数据目录  %APPDATA%\LogiBatteryTray",
             8.5f, FontStyle.Regular, _secondary);
 
         // 卡片高度按实际内容撑开
-        card.Height = (int)(data.Bottom + S(16));
+        card.Height = (int)(data.Bottom + S(12));
 
         // 按钮行
-        float buttonsY = card.Bottom + S(10);
+        float buttonsY = card.Bottom + S(8);
 
         var log = MakeButton(28, buttonsY, "打开日志", S(116));
         log.Parent = page.Content;
