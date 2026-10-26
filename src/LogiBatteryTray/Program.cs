@@ -125,7 +125,11 @@ internal static class Cli
     {
         switch (args[0])
         {
-            case "--once": return Once();
+            case "--scanhid": return HidScan.Run(args);
+        case "--sniffhid": return HidScan.RunSniff(args);
+        case "--hidwrite": return HidScan.RunWrite(args);
+        case "--rawsniff": return HidScan.RunRaw(args);
+        case "--once": return Once();
             case "--features": return Features();
             case "--iconpreview": return IconPreview(args.Length > 1 ? args[1] : "icon-preview.png");
             case "--iconstyles": return IconStyles(args.Length > 1 ? args[1] : "icon-styles.png");
