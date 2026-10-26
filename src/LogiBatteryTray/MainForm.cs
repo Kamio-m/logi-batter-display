@@ -175,6 +175,9 @@ internal sealed class MainForm : Form, IMessageFilter
 
     private int SidebarWidth => (int)S(212);
 
+    /// <summary>卡片之间的统一间距。</summary>
+    private int CardGap => (int)S(12);
+
     private ScrollHost NewPage() => new(_background)
     {
         Location = P(212, 0),
@@ -315,13 +318,13 @@ internal sealed class MainForm : Form, IMessageFilter
 
         if (_manualList != null)
         {
-            _manualList.Top = _deviceList.Bottom + (int)S(12);
+            _manualList.Top = _deviceList.Bottom + CardGap;
             _manualList.Height = Math.Max((int)S(10), _manualList.Height);
         }
 
         if (_actionsPanel != null)
         {
-            _actionsPanel.Top = (_manualList == null ? _deviceList.Bottom : _manualList.Bottom) + (int)S(18);
+            _actionsPanel.Top = (_manualList == null ? _deviceList.Bottom : _manualList.Bottom) + CardGap;
         }
     }
 
@@ -642,19 +645,19 @@ internal sealed class MainForm : Form, IMessageFilter
 
                 _manualList.Controls.Add(card);
                 _manualCards.Add(card);
-                top += S(152) + S(12);
+                top += S(152) + CardGap;
             }
 
             _manualList.Height = (int)Math.Max(top, S(10));
 
             if (_addManualButton != null)
             {
-                _addManualButton.Location = new Point((int)S(28), _manualList.Bottom + (int)S(6));
+                _addManualButton.Location = new Point((int)S(28), _manualList.Bottom + CardGap);
                 _addManualButton.Visible = true;
             }
 
             if (_actionsPanel != null)
-                _actionsPanel.Top = (_addManualButton == null ? _manualList.Bottom : _addManualButton.Bottom) + (int)S(18);
+                _actionsPanel.Top = (_addManualButton == null ? _manualList.Bottom : _addManualButton.Bottom) + CardGap;
 
             _manualList.Parent?.PerformLayout();
         }
