@@ -185,6 +185,8 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SystemEvents.SessionSwitch += (_, _) => RefreshAsync();
 
+        ConfigureSubMenus();
+
         UpdateMenuState();
         RefreshAsync();
 
@@ -415,6 +417,30 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
     private static string DeviceKey(LogiDevice device) => device.Path + "#" + device.Name;
 
+    /// <summary>让所有子菜单都预留勾选位置（默认只有主菜单有）。</summary>
+    private void ConfigureSubMenus()
+    {
+        void Visit(ToolStripItemCollection items)
+        {
+            foreach (ToolStripItem item in items)
+            {
+                if (item is not ToolStripMenuItem menu) continue;
+
+                if (menu.DropDown is ToolStripDropDownMenu drop)
+                {
+                    drop.ShowCheckMargin = true;
+                    drop.ShowImageMargin = false;
+                    drop.Renderer = _menu.Renderer;
+                    drop.Font = _menu.Font;
+                    drop.BackColor = _menu.BackColor;
+                }
+
+                Visit(menu.DropDownItems);
+            }
+        }
+
+        Visit(_menu.Items);
+    }
     private void RebuildDeviceMenu()
     {
         _deviceMenu.DropDownItems.Clear();
@@ -484,6 +510,8 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
             _deviceMenu.DropDownItems.Add(item);
         }
+
+        ConfigureSubMenus();
     }
     private void ShowDetails()
     {
