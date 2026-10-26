@@ -41,6 +41,12 @@ internal sealed class MainForm : Form, IMessageFilter
     private int _lastAccent;
     private const string CardDragFormat = "LogiBatteryTray.DeviceKey";
     private bool _suppressClick;
+    private string _dragKey;
+    private Point _dragPressScreen;
+    private bool _dragStarted;
+    private DragGhostForm _dragGhost;
+    private int _dragOffsetX = 20;
+    private int _dragOffsetY = 20;
 
     private ToggleSwitch _autostartToggle;
     private ToggleSwitch _notifyToggle;
@@ -380,89 +386,87 @@ internal sealed class MainForm : Form, IMessageFilter
             : key;
     }
 
-    /// <summary>轻量拖拽：按住卡片拖动，松手即把该设备设为托盘显示。</summary>
+    /// <summary>按下卡片即登记为候选拖拽，后续移动/松手由消息过滤器接管。</summary>
     private void AttachCardDrag(Control card, string key)
     {
-        Point pressScreen = Point.Empty;
-        bool armed = false;
-        bool dragging = false;
-        DragGhostForm ghost = null;
-        int offsetX = 20, offsetY = 20;
-
         void Down(object s, MouseEventArgs e)
         {
             if (e.Button != MouseButtons.Left) return;
 
-            pressScreen = Cursor.Position;
-            armed = true;
-            dragging = false;
-            card.Capture = true;
-        }
-
-        void Move(object s, MouseEventArgs e)
-        {
-            if (!armed) return;
-
-            if (!dragging)
-            {
-                var threshold = SystemInformation.DragSize;
-                if (Math.Abs(Cursor.Position.X - pressScreen.X) < threshold.Width / 2 &&
-                    Math.Abs(Cursor.Position.Y - pressScreen.Y) < threshold.Height / 2) return;
-
-                dragging = true;
-                _suppressClick = true;
-
-                var cardScreen = card.PointToScreen(Point.Empty);
-                offsetX = Math.Min(Math.Max(Cursor.Position.X - cardScreen.X, 0), Math.Max(1, card.Width / 2));
-                offsetY = Math.Min(Math.Max(Cursor.Position.Y - cardScreen.Y, 0), Math.Max(1, card.Height / 2));
-
-                ghost = new DragGhostForm(DragGhostForm.Snapshot(card)) { Opacity = 0.85 };
-                ghost.Show();
-            }
-
-            ghost?.FollowCursor(offsetX, offsetY);
-        }
-
-        void Up(object s, MouseEventArgs e)
-        {
-            if (!armed) return;
-
-            armed = false;
-            card.Capture = false;
-
-            if (!dragging) return;
-
-            dragging = false;
-
-            var dying = ghost;
-            ghost = null;
-            dying?.Close();
-
-            // 松手落在窗口范围内才生效
-            var screen = Cursor.Position;
-            bool inside = ClientRectangle.Contains(PointToClient(screen));
-
-            if (inside)
-            {
-                _app.Settings.SelectedDeviceKey = key;
-                _app.ApplySettingsFromWindow();
-                UpdateView();
-            }
-
-            _suppressClick = true;
+            _dragKey = key;
+            _dragPressScreen = Cursor.Position;
+            _dragStarted = false;
         }
 
         card.MouseDown += Down;
-        card.MouseMove += Move;
-        card.MouseUp += Up;
-
         foreach (Control child in card.Controls)
         {
             if (child is Button) continue;
             child.MouseDown += Down;
-            child.MouseMove += Move;
-            child.MouseUp += Up;
         }
+    }
+
+    /// <summary>鼠标移动：超过阈值就开始拖动并让幽灵跟随。</summary>
+    private void UpdateDrag()
+    {
+        if (_dragKey == null) return;
+
+        if (!_dragStarted)
+        {
+            var threshold = SystemInformation.DragSize;
+            if (Math.Abs(Cursor.Position.X - _dragPressScreen.X) < threshold.Width / 2 &&
+                Math.Abs(Cursor.Position.Y - _dragPressScreen.Y) < threshold.Height / 2) return;
+
+            _dragStarted = true;
+            _suppressClick = true;
+
+            var card = DeviceCardForDrag();
+            if (card != null)
+            {
+                var origin = card.PointToScreen(Point.Empty);
+                _dragOffsetX = Math.Min(Math.Max(Cursor.Position.X - origin.X, 0), Math.Max(1, card.Width / 2));
+                _dragOffsetY = Math.Min(Math.Max(Cursor.Position.Y - origin.Y, 0), Math.Max(1, card.Height / 2));
+
+                _dragGhost = new DragGhostForm(DragGhostForm.Snapshot(card)) { Opacity = 0.85 };
+                _dragGhost.Show();
+            }
+        }
+
+        _dragGhost?.FollowCursor(_dragOffsetX, _dragOffsetY);
+    }
+
+    /// <summary>松手：在窗口内就把该设备设为托盘显示。</summary>
+    private void FinishDrag()
+    {
+        if (_dragKey == null) return;
+
+        string key = _dragKey;
+        bool started = _dragStarted;
+        _dragKey = null;
+        _dragStarted = false;
+
+        var ghost = _dragGhost;
+        _dragGhost = null;
+        ghost?.Close();
+
+        if (!started) return;
+
+        if (ClientRectangle.Contains(PointToClient(Cursor.Position)))
+        {
+            _app.Settings.SelectedDeviceKey = key;
+            _app.ApplySettingsFromWindow();
+            UpdateView();
+        }
+
+        _suppressClick = true;
+    }
+
+    private Control DeviceCardForDrag()
+    {
+        string key = _dragKey ?? "";
+        if (key.StartsWith("manual:", StringComparison.OrdinalIgnoreCase))
+            return _manualCards.FirstOrDefault(c => ("manual:" + c.DeviceName) == key);
+        return _deviceCards.FirstOrDefault(c => c.Key == key);
     }
     /// <summary>点设备卡片循环切换图标样式，所有设备一起变。</summary>
     private void CycleCardShape()
@@ -1409,6 +1413,25 @@ internal sealed class MainForm : Form, IMessageFilter
     public bool PreFilterMessage(ref Message m)
     {
         const int WmMouseWheel = 0x020A;
+        const int WmMouseMove = 0x0200;
+        const int WmLeftButtonUp = 0x0202;
+
+        // 拖拽期间接管鼠标移动与抬起
+        if (_dragKey != null)
+        {
+            if (m.Msg == WmMouseMove)
+            {
+                UpdateDrag();
+                return false;
+            }
+
+            if (m.Msg == WmLeftButtonUp)
+            {
+                FinishDrag();
+                return false;
+            }
+        }
+
         if (m.Msg != WmMouseWheel || !Visible) return false;
         if (!ClientRectangle.Contains(PointToClient(Cursor.Position))) return false;
 
