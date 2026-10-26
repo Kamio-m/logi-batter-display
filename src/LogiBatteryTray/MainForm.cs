@@ -665,7 +665,15 @@ internal sealed class MainForm : Form, IMessageFilter
         if (_manualList == null) return;
 
         var devices = _app.Settings.ManualDevices ?? new List<ManualBatteryDevice>();
-        string signature = string.Join("|", devices.Select(d => $"{d.Name}#{d.LifeDays}#{d.LastChargedUtc.Ticks}"));
+        string selectedManualKey = _app.Settings.SelectedDeviceKey ?? "";
+
+        // 选中的估算设备排到最前面
+        var ordered = devices
+            .OrderByDescending(d => selectedManualKey == "manual:" + d.Name)
+            .ToList();
+
+        string signature = string.Join("|", ordered.Select(d => $"{d.Name}#{d.LifeDays}#{d.LastChargedUtc.Ticks}"))
+                           + "|sel:" + selectedManualKey;
 
         if (signature != _manualSignature)
         {
@@ -674,9 +682,9 @@ internal sealed class MainForm : Form, IMessageFilter
             foreach (var card in _manualCards) { _manualList.Controls.Remove(card); card.Dispose(); }
             _manualCards.Clear();
 
-            string selectedManual = _app.Settings.SelectedDeviceKey ?? "";
+            string selectedManual = selectedManualKey;
             float top = 0;
-            foreach (var device in devices)
+            foreach (var device in ordered)
             {
                 var card = new ManualCard(_cardColor, _border, _background, _fore, _secondary, _accent, _light, device)
                 {
