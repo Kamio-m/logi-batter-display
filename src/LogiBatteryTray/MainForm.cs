@@ -402,13 +402,43 @@ internal sealed class MainForm : Form, IMessageFilter
 
             dragging = true;
             _suppressClick = true;
+
+            DragGhostForm ghost = null;
+            int offsetX = 20, offsetY = 20;
             try
             {
+                var screenPoint = Cursor.Position;
+                var cardScreen = card.PointToScreen(e.Location);
+                offsetX = Math.Min(Math.Max(screenPoint.X - cardScreen.X, 0), Math.Max(1, card.Width));
+                offsetY = Math.Min(Math.Max(screenPoint.Y - cardScreen.Y, 0), Math.Max(1, card.Height));
+
+                ghost = new DragGhostForm(DragGhostForm.Snapshot(card));
+                ghost.Show();
+                ghost.FollowCursor(offsetX, offsetY);
+                ghost.FadeIn(0.7);
+
+                card.GiveFeedback += OnGhostFeedback;
+
                 card.DoDragDrop(new DataObject(CardDragFormat, key), DragDropEffects.Move);
             }
             finally
             {
+                card.GiveFeedback -= OnGhostFeedback;
+                if (ghost != null && !ghost.IsDisposed)
+                {
+                    ghost.FadeOutAndClose();
+                }
                 _suppressClick = false;
+            }
+
+            void OnGhostFeedback(object sender, GiveFeedbackEventArgs args)
+            {
+                args.UseDefaultCursors = false;
+                Cursor = Cursors.Hand;
+                if (ghost != null && !ghost.IsDisposed)
+                {
+                    ghost.FollowCursor(offsetX, offsetY);
+                }
             }
         }
 
