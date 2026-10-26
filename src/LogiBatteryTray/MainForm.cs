@@ -335,7 +335,21 @@ internal sealed class MainForm : Form, IMessageFilter
     private string SelectedKey()
     {
         string key = _app.Settings.SelectedDeviceKey ?? "";
-        return key.Length > 0 ? key : DeviceKeyOf(_app.DisplayDevice ?? new LogiDevice { Path = "", Name = "" });
+
+        if (key.StartsWith("manual:", StringComparison.OrdinalIgnoreCase))
+        {
+            string name = key["manual:".Length..];
+            if (_app.Settings.ManualDevices?.Any(d => d.Name == name) == true) return key;
+            // 这台估算设备已被删除 → 忽略这个记录
+        }
+        else if (key.Length > 0 && key != "auto")
+        {
+            if (_app.Service.Devices.Any(d => MatchesKey(d, key))) return key;
+        }
+
+        return _app.DisplayDevice is LogiDevice shown
+            ? DeviceKeyOf(shown)
+            : key;
     }
 
     /// <summary>点设备卡片循环切换图标样式，所有设备一起变。</summary>
@@ -708,6 +722,9 @@ internal sealed class MainForm : Form, IMessageFilter
 
                 card.DeleteRequested += (_, _) =>
                 {
+                    if ((_app.Settings.SelectedDeviceKey ?? "") == "manual:" + device.Name)
+                        _app.Settings.SelectedDeviceKey = "";
+
                     _app.Settings.ManualDevices.Remove(device);
                     _app.ApplySettingsFromWindow();
                     _manualSignature = "";
