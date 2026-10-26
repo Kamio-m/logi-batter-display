@@ -635,10 +635,11 @@ internal sealed class MainForm : Form, IMessageFilter
             @"数据目录  %APPDATA%\LogiBatteryTray",
             8.5f, FontStyle.Regular, _secondary);
 
-        _ = data;
+        // 卡片高度按实际内容撑开
+        card.Height = (int)(data.Bottom + S(24));
 
         // 按钮行
-        float buttonsY = y + S(224);
+        float buttonsY = card.Bottom + S(16);
 
         var log = MakeButton(28, buttonsY, "打开日志", S(116));
         log.Parent = page.Content;
