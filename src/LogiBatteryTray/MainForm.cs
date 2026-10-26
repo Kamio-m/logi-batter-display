@@ -608,24 +608,32 @@ internal sealed class MainForm : Form, IMessageFilter
     {
         if (_deviceList == null || _manualList == null) return;
 
+        // 每次按实际卡片算高度，杜绝残留状态
+        _manualList.Height = _manualCards.Count == 0 ? 0 : _manualCards.Max(c => c.Bottom);
+        _deviceList.Height = _deviceCards.Count == 0 ? 0 : _deviceCards.Max(c => c.Bottom);
+
         bool manualFirst = (_app.Settings.SelectedDeviceKey ?? "").StartsWith("manual:", StringComparison.OrdinalIgnoreCase)
                            && _manualCards.Count > 0;
 
         int gap = CardGap;
         int top = _listTopY;
+        bool hasDevice = _deviceCards.Count > 0;
+        bool hasManual = _manualCards.Count > 0;
 
         if (manualFirst)
         {
             _manualList.Top = top;
-            _deviceList.Top = _manualList.Bottom + gap;
+            if (hasDevice) _deviceList.Top = _manualList.Bottom + gap;
+            else _deviceList.Top = top;
         }
         else
         {
             _deviceList.Top = top;
-            _manualList.Top = _deviceList.Bottom + gap;
+            if (hasManual) _manualList.Top = hasDevice ? _deviceList.Bottom + gap : top;
+            else _manualList.Top = top;
         }
 
-        int bottom = Math.Max(_manualList.Bottom, _deviceList.Bottom);
+        int bottom = Math.Max(hasManual ? _manualList.Bottom : top, hasDevice ? _deviceList.Bottom : top);
 
         if (_addManualButton != null)
             _addManualButton.Top = bottom + gap;
