@@ -655,6 +655,8 @@ internal sealed class MainForm : Form, IMessageFilter
 
             if (_actionsPanel != null)
                 _actionsPanel.Top = (_addManualButton == null ? _manualList.Bottom : _addManualButton.Bottom) + (int)S(18);
+
+            _manualList.Parent?.PerformLayout();
         }
 
         foreach (var card in _manualCards) card.RefreshNow();
@@ -1013,6 +1015,9 @@ internal sealed class MainForm : Form, IMessageFilter
         }
 
         RebuildManualCards();
+
+        // 内容高度变了要重新布局，否则滚动条不会出现
+        _devicePage?.PerformLayout();
 
         if (_deviceButton != null) RebuildDeviceOptions();
     }
