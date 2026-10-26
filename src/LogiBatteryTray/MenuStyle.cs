@@ -54,8 +54,27 @@ internal sealed class RoundedMenuRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
     {
-        // 交给系统绘制：勾选列位置由控件自己算，保证与文字对齐
-        base.OnRenderItemCheck(e);
+        // 自绘对勾：固定画在左侧预留列里，既不贴边也不压字
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        float size = 13f;
+        float x = 11f;
+        float y = e.Item.Height / 2f - size / 2f;
+
+        using var pen = new Pen(Foreground, 1.9f)
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round,
+            LineJoin = LineJoin.Round,
+        };
+
+        g.DrawLines(pen, new[]
+        {
+            new PointF(x, y + size * 0.55f),
+            new PointF(x + size * 0.36f, y + size * 0.9f),
+            new PointF(x + size * 1.0f, y + size * 0.12f),
+        });
     }
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
     {
