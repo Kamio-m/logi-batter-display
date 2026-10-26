@@ -769,13 +769,14 @@ internal sealed class RoundedTextField : Control
 
     public RoundedTextField()
     {
-        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        BackColor = Color.FromArgb(26, 26, 29);
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
 
         _box = new TextBox
         {
             BorderStyle = BorderStyle.None,
-            BackColor = BackColor,
+            BackColor = Surface,
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 10f),
         };
@@ -786,6 +787,18 @@ internal sealed class RoundedTextField : Control
     }
 
     public TextBox InnerBox => _box;
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color Surface { get; set; } = Color.FromArgb(26, 26, 29);
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color Outline { get; set; } = Color.FromArgb(56, 56, 62);
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color AccentColor { get; set; } = Color.FromArgb(58, 130, 255);
 
     public override string Text
     {
@@ -802,6 +815,16 @@ internal sealed class RoundedTextField : Control
         _box.Width = Math.Max(20, Width - 24);
     }
 
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        // 不画矩形底色，避免圆角外出现黑边
+        if (Parent != null)
+        {
+            using var brush = new SolidBrush(Parent.BackColor);
+            e.Graphics.FillRectangle(brush, ClientRectangle);
+        }
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
@@ -810,10 +833,10 @@ internal sealed class RoundedTextField : Control
         var rect = new RectangleF(0.5f, 0.5f, Width - 1f, Height - 1f);
         using var path = Rounded(rect, 8);
 
-        using (var brush = new SolidBrush(BackColor))
+        using (var brush = new SolidBrush(Surface))
             g.FillPath(brush, path);
 
-        using (var pen = new Pen(_box.Focused ? Color.FromArgb(58, 130, 255) : Color.FromArgb(56, 56, 62), _box.Focused ? 1.6f : 1f))
+        using (var pen = new Pen(_box.Focused ? AccentColor : Outline, _box.Focused ? 1.6f : 1f))
             g.DrawPath(pen, path);
     }
 

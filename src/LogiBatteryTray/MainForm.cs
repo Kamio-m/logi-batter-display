@@ -1088,6 +1088,9 @@ internal sealed class MainForm : Form, IMessageFilter
             Text = candidates.Count > 0 ? candidates[0].Name : "键盘",
             Location = P(26, 152),
             Size = new Size((int)S(328), (int)S(34)),
+            Surface = _background,
+            Outline = _border,
+            AccentColor = _accent,
         };
 
         var daysLabel = new Label
