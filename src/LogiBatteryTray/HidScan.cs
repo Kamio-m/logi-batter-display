@@ -255,7 +255,7 @@ internal static class HidScan
                 continue;
             }
 
-            for (byte id = 0; id <= 12; id++)
+            for (byte id = 0; id <= 63; id++)
             {
                 var buffer = new byte[device.FeatureReportLength];
                 buffer[0] = id;

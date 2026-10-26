@@ -11,6 +11,9 @@ internal sealed class AppSettings
 
     public int IntervalSeconds { get; set; } = 2;
 
+    /// <summary>Manually tracked devices (battery estimated from charge date).</summary>
+    public List<ManualBatteryDevice> ManualDevices { get; set; } = new();
+
     /// <summary>配置版本，用于迁移旧设置。</summary>
     public int SettingsVersion { get; set; }
     public bool Autostart { get; set; }

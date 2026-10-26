@@ -526,6 +526,14 @@ internal static class Cli
         if (args != null && args.Contains("ring")) IconFactory.Shape = IconShape.Ring;
         if (args != null && args.Contains("percent")) IconFactory.Shape = IconShape.Percent;
 
+        if (args != null && args.Contains("manual"))
+        {
+            settings.ManualDevices = new List<ManualBatteryDevice>
+            {
+                new() { Name = "lanctj 键盘", LifeDays = 60, LastChargedUtc = DateTime.UtcNow.AddDays(-18) },
+            };
+        }
+
         var accentArg = args?.FirstOrDefault(a => a.StartsWith("accent", StringComparison.OrdinalIgnoreCase));
         if (accentArg != null && int.TryParse(accentArg[6..], out int accentIndex)) settings.AccentIndex = accentIndex;
 

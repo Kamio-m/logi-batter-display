@@ -365,6 +365,25 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         return root;
     }
 
+    /// <summary>当前用于估算的“手动设备”（硬件读不到电量时使用）。</summary>
+    private ManualBatteryDevice SelectedManualDevice
+    {
+        get
+        {
+            var list = _settings.ManualDevices;
+            if (list == null || list.Count == 0) return null;
+
+            string key = _settings.SelectedDeviceKey ?? "";
+            if (key.StartsWith("manual:", StringComparison.OrdinalIgnoreCase))
+            {
+                string name = key["manual:".Length..];
+                var match = list.FirstOrDefault(d => d.Name == name);
+                if (match != null) return match;
+            }
+
+            return list[0];
+        }
+    }
     /// <summary>当前托盘图标要显示的设备。</summary>
     public LogiDevice DisplayDevice
     {
@@ -399,6 +418,25 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private void RebuildDeviceMenu()
     {
         _deviceMenu.DropDownItems.Clear();
+
+        foreach (var manual in _settings.ManualDevices ?? new List<ManualBatteryDevice>())
+        {
+            int estimated = manual.RemainingPercent(DateTime.UtcNow);
+            string key = "manual:" + manual.Name;
+
+            var item = new ToolStripMenuItem($"{manual.Name}（估算 {estimated}%）", null, (_, _) =>
+            {
+                _settings.SelectedDeviceKey = key;
+                _settings.Save();
+                Apply(true);
+            })
+            {
+                Checked = (_settings.SelectedDeviceKey ?? "") == key,
+            };
+
+            _deviceMenu.DropDownItems.Add(item);
+        }
+
 
         var devices = _service.Devices;
         if (devices.Count == 0)
@@ -604,6 +642,27 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private void Apply(bool ok)
     {
         var device = DisplayDevice;
+
+        // 没有可用硬件设备时，用「估算设备」顶上
+        if (device == null)
+        {
+            var manual = SelectedManualDevice;
+            if (manual != null)
+            {
+                int estimated = manual.RemainingPercent(DateTime.UtcNow);
+                var estimate = new BatteryReading { Percent = estimated };
+
+                _header.Text = $"{manual.Name}   约 {estimated}%   估算（{manual.Describe(DateTime.UtcNow)}）";
+                _settings.LastDeviceName = manual.Name;
+
+                UpdateIcon(estimate, true, $"{estimated}%");
+                UpdateMenuState();
+                _widget?.UpdateView(null, false);
+                _tray.Text = $"{manual.Name} 约 {estimated}% · {manual.Describe(DateTime.UtcNow)}";
+                return;
+            }
+        }
+
         var battery = device?.Battery;
         bool online = device != null && device.Online && battery != null;
 
