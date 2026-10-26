@@ -424,7 +424,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             int estimated = manual.RemainingPercent(DateTime.UtcNow);
             string key = "manual:" + manual.Name;
 
-            var item = new ToolStripMenuItem($"{manual.Name}（估算 {estimated}%）", null, (_, _) =>
+            var item = new ToolStripMenuItem($"{manual.Name}（约 {estimated}%）", null, (_, _) =>
             {
                 _settings.SelectedDeviceKey = key;
                 _settings.Save();
@@ -659,13 +659,13 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             int manualPercent = explicitManual.RemainingPercent(DateTime.UtcNow);
             var reading = new BatteryReading { Percent = manualPercent };
 
-            _header.Text = $"{explicitManual.Name}   约 {manualPercent}%   估算（{explicitManual.Describe(DateTime.UtcNow)}）";
+            _header.Text = $"{explicitManual.Name}   约 {manualPercent}%";
             _settings.LastDeviceName = explicitManual.Name;
 
             UpdateIcon(reading, true, $"{manualPercent}%");
             UpdateMenuState();
             _widget?.UpdateView(null, false);
-            SetTrayText($"{explicitManual.Name} 约 {manualPercent}% · {explicitManual.Describe(DateTime.UtcNow)}");
+            SetTrayText($"{explicitManual.Name} 约 {manualPercent}% · 还剩 {explicitManual.RemainingDays(DateTime.UtcNow)} 天");
             return;
         }
 
@@ -680,13 +680,13 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
                 int estimated = manual.RemainingPercent(DateTime.UtcNow);
                 var estimate = new BatteryReading { Percent = estimated };
 
-                _header.Text = $"{manual.Name}   约 {estimated}%   估算（{manual.Describe(DateTime.UtcNow)}）";
+                _header.Text = $"{manual.Name}   约 {estimated}%";
                 _settings.LastDeviceName = manual.Name;
 
                 UpdateIcon(estimate, true, $"{estimated}%");
                 UpdateMenuState();
                 _widget?.UpdateView(null, false);
-                _tray.Text = $"{manual.Name} 约 {estimated}% · {manual.Describe(DateTime.UtcNow)}";
+                _tray.Text = $"{manual.Name} 约 {estimated}% · 还剩 {manual.RemainingDays(DateTime.UtcNow)} 天";
                 return;
             }
         }
