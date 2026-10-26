@@ -597,7 +597,8 @@ internal sealed class NumberField : Control
     public NumberField()
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
-                 ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+                 ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor |
+                 ControlStyles.Selectable, true);
         BackColor = Color.Transparent;
         Font = new Font("Segoe UI", 10f);
         Size = new Size(68, 30);
@@ -681,6 +682,10 @@ internal sealed class NumberField : Control
 
         if (UpRect.Contains(e.Location)) { Value += 1; return; }
         if (DownRect.Contains(e.Location)) { Value -= 1; return; }
+
+        // 点文字区域：清空缓冲，方便直接输入替换
+        _buffer = string.Empty;
+        Invalidate();
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
