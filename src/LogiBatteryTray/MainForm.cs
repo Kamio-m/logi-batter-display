@@ -50,14 +50,14 @@ internal sealed class MainForm : Form, IMessageFilter
 
     private ToggleSwitch _autostartToggle;
     private ToggleSwitch _notifyToggle;
-    private ComboBox _shapeCombo;
-    private ComboBox _intervalCombo;
-    private ComboBox _offlineCombo;
-    private ComboBox _deviceCombo;
-    private ComboBox _themeCombo;
-    private ComboBox _opacityCombo;
-    private ComboBox _cornerCombo;
-    private ComboBox _accentCombo;
+    private RoundedDropDown _shapeCombo;
+    private RoundedDropDown _intervalCombo;
+    private RoundedDropDown _offlineCombo;
+    private RoundedDropDown _deviceCombo;
+    private RoundedDropDown _themeCombo;
+    private RoundedDropDown _opacityCombo;
+    private RoundedDropDown _cornerCombo;
+    private RoundedDropDown _accentCombo;
     private readonly List<(string Key, string Label)> _deviceOptions = new();
     private int _deviceIndex;
 
@@ -675,44 +675,25 @@ internal sealed class MainForm : Form, IMessageFilter
     }
 
     /// <summary>一行“标签 + 下拉列表”。</summary>
-    private float AddComboRow(Panel card, float y, string label, out ComboBox combo, string[] items,
+    private float AddComboRow(Panel card, float y, string label, out RoundedDropDown combo, string[] items,
         int selectedIndex, Action<int> changed)
     {
         AddRowLabel(card, y, label);
 
-        var box = new ComboBox
+        var box = new RoundedDropDown
         {
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            FlatStyle = FlatStyle.Flat,
-            DrawMode = DrawMode.OwnerDrawFixed,
             Font = new Font("Segoe UI", 9f),
-            BackColor = ButtonBack,
-            ForeColor = _fore,
-            ItemHeight = (int)S(24),
-            Size = new Size((int)S(168), (int)S(30)),
-            Location = new Point(card.Width - (int)S(168) - (int)S(20), (int)(y + (S(52) - S(30)) / 2)),
+            Surface = ButtonBack,
+            HoverSurface = ButtonHover,
+            TextColor = _fore,
+            AccentColor = _accent,
+            PopupBackground = _cardColor,
+            Size = new Size((int)S(168), (int)S(32)),
+            Location = new Point(card.Width - (int)S(168) - (int)S(20), (int)(y + (S(52) - S(32)) / 2)),
             Anchor = AnchorStyles.Top | AnchorStyles.Right,
         };
 
-        // 深色自绘
-        box.DrawItem += (s, e) =>
-        {
-            var cb = (ComboBox)s;
-
-            bool hot = (e.State & DrawItemState.Selected) != 0;
-            var back = hot ? _accent : (cb.Focused && e.Index == cb.SelectedIndex ? ButtonBack : ButtonBack);
-            using (var brush = new SolidBrush(back))
-                e.Graphics.FillRectangle(brush, e.Bounds);
-
-            string text = e.Index >= 0 && e.Index < cb.Items.Count
-                ? cb.Items[e.Index]?.ToString()
-                : cb.Text;
-
-            TextRenderer.DrawText(e.Graphics, text, cb.Font, e.Bounds, hot ? Color.White : _fore,
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-        };
-
-        box.Items.AddRange(items);
+        box.SetItems(items);
         if (selectedIndex >= 0 && selectedIndex < box.Items.Count) box.SelectedIndex = selectedIndex;
 
         box.SelectedIndexChanged += (_, _) =>
@@ -1283,7 +1264,7 @@ internal sealed class MainForm : Form, IMessageFilter
     }
 
     /// <summary>安全地设置下拉选中项（不触发回调）。</summary>
-    private void SetComboIndex(ComboBox combo, int index)
+    private void SetComboIndex(RoundedDropDown combo, int index)
     {
         if (combo == null || index < 0 || index >= combo.Items.Count) return;
         if (combo.SelectedIndex == index) return;
@@ -1438,24 +1419,16 @@ internal sealed class MainForm : Form, IMessageFilter
         int index = _deviceOptions.FindIndex(option => option.Key == selected);
         if (index < 0) index = 0;
 
+        bool wasLoading = _loading;
         _loading = true;
         try
         {
-            if (_deviceCombo.Items.Count != _deviceOptions.Count) _deviceCombo.Items.Clear();
-            for (int i = 0; i < _deviceOptions.Count; i++)
-            {
-                if (i < _deviceCombo.Items.Count && (_deviceCombo.Items[i] as string) == _deviceOptions[i].Label) continue;
-                if (i < _deviceCombo.Items.Count) _deviceCombo.Items[i] = _deviceOptions[i].Label;
-                else _deviceCombo.Items.Add(_deviceOptions[i].Label);
-            }
-
-            while (_deviceCombo.Items.Count > _deviceOptions.Count) _deviceCombo.Items.RemoveAt(_deviceCombo.Items.Count - 1);
-
+            _deviceCombo.SetItems(_deviceOptions.Select(o => o.Label));
             _deviceCombo.SelectedIndex = index;
         }
         finally
         {
-            _loading = false;
+            _loading = wasLoading;
         }
 
         _deviceIndex = index;
