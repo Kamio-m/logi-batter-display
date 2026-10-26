@@ -28,6 +28,11 @@ internal sealed class AppSettings
     public int WidgetY { get; set; } = int.MinValue;
 
     /// <summary>主题色序号（见 Theme.Accents）。</summary>
+    /// <summary>主窗口尺寸（0 表示使用默认值）。</summary>
+    public int WindowWidth { get; set; }
+    public int WindowHeight { get; set; }
+    public bool WindowMaximized { get; set; }
+
     public int AccentIndex { get; set; }
 
     /// <summary>图标形状：0=圆环，1=电池。</summary>
