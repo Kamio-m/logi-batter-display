@@ -909,8 +909,8 @@ internal sealed class MainForm : Form, IMessageFilter
                 {
                     // 百分比样式：大数字占图标位置，说明行固定在第 4 行
                     _icon.Visible = false;
-                    _percent.Font = new Font("Segoe UI", 32f, FontStyle.Bold);
-                    _percent.Location = new Point((int)(26 * dpi), (int)(32 * dpi));
+                    _percent.Font = new Font("Segoe UI", _selected ? 26f : 22f, FontStyle.Bold);
+                    _percent.Location = new Point((int)((_selected ? 22 : 16) * dpi), (int)(26 * dpi));
                     _detail.Location = new Point(textX, (int)(96 * dpi));
                 }
                 else
@@ -1362,16 +1362,7 @@ internal sealed class MainForm : Form, IMessageFilter
                 _badge.Visible = value;
                 _badge.Location = new Point(Width - _badge.Width - (int)(16 * Dpi), (int)(16 * Dpi));
 
-                // 选中：大图标；未选中：小图标靠左上
-                int size = (int)((_selected ? 88 : 64) * Dpi);
-                int inset = (int)((_selected ? 22 : 16) * Dpi);
-
-                _ring.Location = new Point(inset, inset);
-                _ring.Size = new Size(size, size);
-
-                _bigPercent.Location = _ring.Location;
-                _bigPercent.Size = _ring.Size;
-
+                ApplyIconMetrics();
                 if (_lastDevice != null) SetDevice(_lastDevice);
             }
         }
@@ -1401,6 +1392,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
             bool percentShape = IconFactory.Shape == IconShape.Percent;
             _percentMode = percentShape;
+            ApplyIconMetrics();
             _percent.Visible = !percentShape;
             _ring.Visible = !percentShape;
             _bigPercent.Visible = percentShape;
@@ -1456,6 +1448,24 @@ internal sealed class MainForm : Form, IMessageFilter
             Invalidate(true);
         }
 
+        /// <summary>图标（或百分比大数字）的尺寸与位置：选中大、未选中小且靠左上。</summary>
+        private void ApplyIconMetrics()
+        {
+            float dpi = Dpi;
+            int size = (int)((_selected ? 88 : 64) * dpi);
+            int inset = (int)((_selected ? 22 : 16) * dpi);
+
+            _ring.Location = new Point(inset, inset);
+            _ring.Size = new Size(size, size);
+
+            // 大数字可以比图标更宽，但不会压到右侧文字列
+            int textX = (int)(126 * dpi);
+            int available = Math.Max(size, textX - inset - (int)(8 * dpi));
+
+            _bigPercent.Font = new Font("Segoe UI", _selected ? 26f : 22f, FontStyle.Bold);
+            _bigPercent.Location = new Point(inset, (int)(20 * dpi));
+            _bigPercent.Size = new Size(available, (int)(80 * dpi));
+        }
         protected override void OnVisibleChanged(EventArgs e)
         {
             base.OnVisibleChanged(e);
