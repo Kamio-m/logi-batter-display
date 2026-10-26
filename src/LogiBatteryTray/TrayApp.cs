@@ -666,6 +666,8 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             UpdateMenuState();
             _widget?.UpdateView(null, false);
             SetTrayText($"{explicitManual.Name} 约 {manualPercent}% · 还剩 {explicitManual.RemainingDays(DateTime.UtcNow)} 天");
+
+            _mainForm?.UpdateView();   // 提前返回也要刷新窗口，否则界面会停在旧状态
             return;
         }
 
@@ -687,6 +689,8 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
                 UpdateMenuState();
                 _widget?.UpdateView(null, false);
                 _tray.Text = $"{manual.Name} 约 {estimated}% · 还剩 {manual.RemainingDays(DateTime.UtcNow)} 天";
+
+                _mainForm?.UpdateView();
                 return;
             }
         }
