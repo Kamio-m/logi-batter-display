@@ -102,7 +102,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _menu = new ContextMenuStrip
         {
             ShowImageMargin = false,
-            ShowCheckMargin = true,
+            ShowCheckMargin = false,
             MinimumSize = new Size(250, 0),   // 固定最小宽度，避免换设备后菜单忽宽忽窄
             Padding = new Padding(8, 4, 8, 6),
         };
@@ -123,6 +123,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _menu.Items.Add(BuildShapeMenu());
         _menu.Items.Add(BuildOfflineMenu());
         _menu.Opened += (_, _) => RebuildDeviceMenu();
+        _menu.Opening += (_, _) => ApplyCheckMarks();
         _menu.Items.Add(new ToolStripSeparator());
         ApplyMenuStyle();
         _menu.Items.Add(new ToolStripSeparator());
@@ -434,7 +435,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
                 if (menu.DropDown is ToolStripDropDownMenu drop)
                 {
-                    drop.ShowCheckMargin = true;
+                    drop.ShowCheckMargin = false;
                     drop.ShowImageMargin = false;
                     drop.Padding = new Padding(8, 4, 8, 6);
                     drop.Renderer = _menu.Renderer;
@@ -443,6 +444,26 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
                 }
 
                 Visit(menu.DropDownItems);
+            }
+        }
+
+        Visit(_menu.Items);
+    }
+    /// <summary>把勾选状态写进文字前缀，避免自绘勾选列错位。</summary>
+    private void ApplyCheckMarks()
+    {
+        void Visit(ToolStripItemCollection items)
+        {
+            foreach (ToolStripItem entry in items)
+            {
+                if (entry is not ToolStripMenuItem item) continue;
+
+                string baseText = item.Tag as string ?? item.Text.TrimStart('✓', ' ');
+                item.Tag = baseText;
+
+                item.Text = item.Checked ? "✓   " + baseText : "     " + baseText;
+
+                Visit(item.DropDownItems);
             }
         }
 
