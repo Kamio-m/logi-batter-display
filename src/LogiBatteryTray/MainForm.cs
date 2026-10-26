@@ -50,14 +50,14 @@ internal sealed class MainForm : Form, IMessageFilter
 
     private ToggleSwitch _autostartToggle;
     private ToggleSwitch _notifyToggle;
-    private ValueButton _shapeButton;
-    private ValueButton _intervalButton;
-    private ValueButton _offlineButton;
-    private ValueButton _deviceButton;
-    private ValueButton _themeButton;
-    private ValueButton _opacityButton;
-    private ValueButton _cornerButton;
-    private ValueButton _accentButton;
+    private ComboBox _shapeCombo;
+    private ComboBox _intervalCombo;
+    private ComboBox _offlineCombo;
+    private ComboBox _deviceCombo;
+    private ComboBox _themeCombo;
+    private ComboBox _opacityCombo;
+    private ComboBox _cornerCombo;
+    private ComboBox _accentCombo;
     private readonly List<(string Key, string Label)> _deviceOptions = new();
     private int _deviceIndex;
 
@@ -524,12 +524,6 @@ internal sealed class MainForm : Form, IMessageFilter
         _app.Settings.IconShapeMode = next;
         IconFactory.Shape = (IconShape)next;
 
-        if (_shapeButton != null)
-        {
-            _shapeButton.Text = ShapeTexts[IndexOr(ShapeValues, next, 0)];
-            _shapeButton.Invalidate();
-        }
-
         _app.ApplySettingsFromWindow();
         UpdateView();
     }
@@ -542,56 +536,75 @@ internal sealed class MainForm : Form, IMessageFilter
         y += S(14);
 
         var tray = AddCard(page.Content, "托盘", 1, y);
-        AddValueRow(tray, S(46), "显示设备", out _deviceButton, "—");
+        AddComboRow(tray, S(46), "显示设备", out _deviceCombo, Array.Empty<string>(), -1, index =>
+        {
+            if (index < 0 || index >= _deviceOptions.Count) return;
+            _app.Settings.SelectedDeviceKey = _deviceOptions[index].Key;
+            _app.ApplySettingsFromWindow();
+            UpdateView();
+        });
         y += tray.Height + S(16);
 
         var appearance = AddCard(page.Content, "外观", 3, y);
         float row = S(46);
-        row = AddValueRow(appearance, row, "主题", out _themeButton, "跟随系统");
-        row = AddValueRow(appearance, row, "图标形状", out _shapeButton, "圆环");
-        AddValueRow(appearance, row, "主题色", out _accentButton, "蓝色");
+        row = AddComboRow(appearance, row, "主题", out _themeCombo, ThemeTexts, 0, index =>
+        {
+            _app.Settings.ThemeMode = ThemeValues[index];
+            _app.ApplySettingsFromWindow();
+            _app.ReopenWindow();
+        });
+        row = AddComboRow(appearance, row, "图标形状", out _shapeCombo, ShapeTexts, 0, index =>
+        {
+            int shape = ShapeValues[index];
+            _app.Settings.IconShapeMode = shape;
+            IconFactory.Shape = (IconShape)shape;
+            _app.ApplySettingsFromWindow();
+            UpdateView();
+        });
+        AddComboRow(appearance, row, "主题色", out _accentCombo, Theme.Accents.Select(a => a.Name).ToArray(), 0, index =>
+        {
+            _app.Settings.AccentIndex = index;
+            ApplyAccent();
+            _app.ApplySettingsFromWindow();
+        });
 
         y += appearance.Height + S(16);
 
         var menuCard = AddCard(page.Content, "右键菜单", 2, y);
         float menuRow = S(46);
-        menuRow = AddValueRow(menuCard, menuRow, "不透明度", out _opacityButton, "100%");
-        AddValueRow(menuCard, menuRow, "圆角", out _cornerButton, "中");
+        menuRow = AddComboRow(menuCard, menuRow, "不透明度", out _opacityCombo, OpacityTexts, 0, index =>
+        {
+            _app.Settings.MenuOpacity = OpacityValues[index];
+            _app.ApplySettingsFromWindow();
+        });
+        AddComboRow(menuCard, menuRow, "圆角", out _cornerCombo, CornerTexts, 1, index =>
+        {
+            _app.Settings.MenuCorner = CornerValues[index];
+            _app.ApplySettingsFromWindow();
+        });
 
         y += menuCard.Height + S(16);
 
         var behavior = AddCard(page.Content, "行为", 4, y);
         row = S(46);
-        row = AddValueRow(behavior, row, "刷新间隔", out _intervalButton, "2 秒");
-        row = AddValueRow(behavior, row, "关机判定", out _offlineButton, "2 分钟");
+        row = AddComboRow(behavior, row, "刷新间隔", out _intervalCombo, IntervalTexts, 1, index =>
+        {
+            _app.Settings.IntervalSeconds = IntervalValues[index];
+            _app.ApplySettingsFromWindow();
+        });
+        row = AddComboRow(behavior, row, "关机判定", out _offlineCombo, OfflineTexts, 2, index =>
+        {
+            _app.Settings.OfflineAsOffSeconds = OfflineValues[index];
+            _app.ApplySettingsFromWindow();
+        });
         row = AddToggleRow(behavior, row, "开机自动启动", out _autostartToggle);
         AddToggleRow(behavior, row, "电量低于 20% 时通知", out _notifyToggle);
-
-        _deviceButton.Click += (_, _) => CycleDevice();
-
-        _accentButton.Click += (_, _) => CycleAccent();
-
-        _themeButton.Click += (_, _) =>
-        {
-            int next = (_app.Settings.ThemeMode + 1) % ThemeValues.Length;
-            _themeButton.Text = ThemeTexts[next];
-            _app.Settings.ThemeMode = next;
-            _app.ApplySettingsFromWindow();
-            _app.ReopenWindow();   // 黑白配色在构造时确定，重开一次窗口
-        };
-        _opacityButton.Click += (_, _) => Cycle(_opacityButton, OpacityValues, OpacityTexts, v => _app.Settings.MenuOpacity = v);
-        _cornerButton.Click += (_, _) => Cycle(_cornerButton, CornerValues, CornerTexts, v => _app.Settings.MenuCorner = v);
 
         _autostartToggle.CheckedChanged += (_, _) => OnSettingChanged();
         _notifyToggle.CheckedChanged += (_, _) => OnSettingChanged();
 
-        _shapeButton.Click += (_, _) => Cycle(_shapeButton, ShapeValues, ShapeTexts, v => _app.Settings.IconShapeMode = v);
-        _intervalButton.Click += (_, _) => Cycle(_intervalButton, IntervalValues, IntervalTexts, v => _app.Settings.IntervalSeconds = v);
-        _offlineButton.Click += (_, _) => Cycle(_offlineButton, OfflineValues, OfflineTexts, v => _app.Settings.OfflineAsOffSeconds = v);
-
         return page;
     }
-
     // ---------- 关于页 ----------
     private ScrollHost BuildAboutPage()
     {
@@ -662,6 +675,57 @@ internal sealed class MainForm : Form, IMessageFilter
         return card;
     }
 
+    /// <summary>一行“标签 + 下拉列表”。</summary>
+    private float AddComboRow(Panel card, float y, string label, out ComboBox combo, string[] items,
+        int selectedIndex, Action<int> changed)
+    {
+        AddRowLabel(card, y, label);
+
+        var box = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            FlatStyle = FlatStyle.Flat,
+            DrawMode = DrawMode.OwnerDrawFixed,
+            Font = new Font("Segoe UI", 9f),
+            BackColor = ButtonBack,
+            ForeColor = _fore,
+            ItemHeight = (int)S(24),
+            Size = new Size((int)S(168), (int)S(30)),
+            Location = new Point(card.Width - (int)S(168) - (int)S(20), (int)(y + (S(52) - S(30)) / 2)),
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+        };
+
+        // 深色自绘
+        box.DrawItem += (s, e) =>
+        {
+            var cb = (ComboBox)s;
+
+            bool hot = (e.State & DrawItemState.Selected) != 0;
+            var back = hot ? _accent : (cb.Focused && e.Index == cb.SelectedIndex ? ButtonBack : ButtonBack);
+            using (var brush = new SolidBrush(back))
+                e.Graphics.FillRectangle(brush, e.Bounds);
+
+            string text = e.Index >= 0 && e.Index < cb.Items.Count
+                ? cb.Items[e.Index]?.ToString()
+                : cb.Text;
+
+            TextRenderer.DrawText(e.Graphics, text, cb.Font, e.Bounds, hot ? Color.White : _fore,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        };
+
+        box.Items.AddRange(items);
+        if (selectedIndex >= 0 && selectedIndex < box.Items.Count) box.SelectedIndex = selectedIndex;
+
+        box.SelectedIndexChanged += (_, _) =>
+        {
+            if (_loading) return;
+            changed(box.SelectedIndex);
+        };
+
+        combo = box;
+        card.Controls.Add(box);
+        return y + S(52);
+    }
     private float AddValueRow(Panel card, float y, string label, out ValueButton button, string value)
     {
         AddRowLabel(card, y, label);
@@ -1206,20 +1270,32 @@ internal sealed class MainForm : Form, IMessageFilter
         }
     }
 
-    /// <summary>把下拉设置行的文字同步成当前设置值。</summary>
+    /// <summary>把设置行同步成当前设置值。</summary>
     private void SyncSettingLabels()
     {
         if (_loading) return;
 
         var settings = _app.Settings;
 
-        if (_accentButton != null) _accentButton.Text = Theme.AccentName(settings.AccentIndex);
-        if (_shapeButton != null) _shapeButton.Text = ShapeTexts[IndexOr(ShapeValues, settings.IconShapeMode, 0)];
-        if (_intervalButton != null) _intervalButton.Text = IntervalTexts[IndexOr(IntervalValues, settings.IntervalSeconds, 1)];
-        if (_offlineButton != null) _offlineButton.Text = OfflineTexts[IndexOr(OfflineValues, settings.OfflineAsOffSeconds, 2)];
-        if (_themeButton != null) _themeButton.Text = ThemeTexts[IndexOr(ThemeValues, settings.ThemeMode, 0)];
-        if (_opacityButton != null) _opacityButton.Text = OpacityTexts[IndexOr(OpacityValues, settings.MenuOpacity, 0)];
-        if (_cornerButton != null) _cornerButton.Text = CornerTexts[IndexOr(CornerValues, settings.MenuCorner, 1)];
+        SetComboIndex(_shapeCombo, IndexOr(ShapeValues, settings.IconShapeMode, 0));
+        SetComboIndex(_intervalCombo, IndexOr(IntervalValues, settings.IntervalSeconds, 1));
+        SetComboIndex(_offlineCombo, IndexOr(OfflineValues, settings.OfflineAsOffSeconds, 2));
+        SetComboIndex(_themeCombo, IndexOr(ThemeValues, settings.ThemeMode, 0));
+        SetComboIndex(_opacityCombo, IndexOr(OpacityValues, settings.MenuOpacity, 0));
+        SetComboIndex(_cornerCombo, IndexOr(CornerValues, settings.MenuCorner, 1));
+        SetComboIndex(_accentCombo, settings.AccentIndex);
+    }
+
+    /// <summary>安全地设置下拉选中项（不触发回调）。</summary>
+    private void SetComboIndex(ComboBox combo, int index)
+    {
+        if (combo == null || index < 0 || index >= combo.Items.Count) return;
+        if (combo.SelectedIndex == index) return;
+
+        bool wasLoading = _loading;
+        _loading = true;
+        try { combo.SelectedIndex = index; }
+        finally { _loading = wasLoading; }
     }
     /// <summary>按设置里的顺序摆放所有卡片（第一张即托盘显示设备）。</summary>
     private void LayoutOrderedCards()
@@ -1302,7 +1378,6 @@ internal sealed class MainForm : Form, IMessageFilter
 
         int next = (_app.Settings.AccentIndex + 1) % Theme.Accents.Length;
         _app.Settings.AccentIndex = next;
-        _accentButton.Text = Theme.AccentName(next);
 
         ApplyAccent();                    // 立即重绘，不重开窗口
         _app.ApplySettingsFromWindow();   // 保存并同步右键菜单配色
@@ -1342,6 +1417,8 @@ internal sealed class MainForm : Form, IMessageFilter
 
     private void RebuildDeviceOptions()
     {
+        if (_deviceCombo == null) return;
+
         var devices = _app.Service.Devices;
         string selected = _app.Settings.SelectedDeviceKey ?? "";
 
@@ -1365,26 +1442,28 @@ internal sealed class MainForm : Form, IMessageFilter
         int index = _deviceOptions.FindIndex(option => option.Key == selected);
         if (index < 0) index = 0;
 
+        _loading = true;
+        try
+        {
+            if (_deviceCombo.Items.Count != _deviceOptions.Count) _deviceCombo.Items.Clear();
+            for (int i = 0; i < _deviceOptions.Count; i++)
+            {
+                if (i < _deviceCombo.Items.Count && (_deviceCombo.Items[i] as string) == _deviceOptions[i].Label) continue;
+                if (i < _deviceCombo.Items.Count) _deviceCombo.Items[i] = _deviceOptions[i].Label;
+                else _deviceCombo.Items.Add(_deviceOptions[i].Label);
+            }
+
+            while (_deviceCombo.Items.Count > _deviceOptions.Count) _deviceCombo.Items.RemoveAt(_deviceCombo.Items.Count - 1);
+
+            _deviceCombo.SelectedIndex = index;
+        }
+        finally
+        {
+            _loading = false;
+        }
+
         _deviceIndex = index;
-        _deviceButton.Text = _deviceOptions[index].Label;
-        _deviceButton.Invalidate();
     }
-
-    private void CycleDevice()
-    {
-        if (_loading || _deviceOptions.Count <= 1) return;
-
-        _deviceIndex = (_deviceIndex + 1) % _deviceOptions.Count;
-        var option = _deviceOptions[_deviceIndex];
-
-        _deviceButton.Text = option.Label;
-        _deviceButton.Invalidate();
-
-        _app.Settings.SelectedDeviceKey = option.Key;
-        _app.ApplySettingsFromWindow();
-        UpdateView();
-    }
-
     private void LoadFromSettings()
     {
         _loading = true;
@@ -1393,13 +1472,17 @@ internal sealed class MainForm : Form, IMessageFilter
         _autostartToggle.Checked = AppSettings.IsAutostartEnabled();
         _notifyToggle.Checked = settings.LowBatteryNotify;
 
-        _intervalButton.Text = IntervalTexts[IndexOr(IntervalValues, settings.IntervalSeconds, 1)];
-        _shapeButton.Text = ShapeTexts[IndexOr(ShapeValues, settings.IconShapeMode, 0)];
-        _offlineButton.Text = OfflineTexts[IndexOr(OfflineValues, settings.OfflineAsOffSeconds, 2)];
-        _themeButton.Text = ThemeTexts[IndexOr(ThemeValues, settings.ThemeMode, 0)];
-        _opacityButton.Text = OpacityTexts[IndexOr(OpacityValues, settings.MenuOpacity, 0)];
-        _cornerButton.Text = CornerTexts[IndexOr(CornerValues, settings.MenuCorner, 1)];
-        _accentButton.Text = Theme.AccentName(settings.AccentIndex);
+        SetComboIndex(_intervalCombo, IndexOr(IntervalValues, settings.IntervalSeconds, 1));
+        SetComboIndex(_shapeCombo, IndexOr(ShapeValues, settings.IconShapeMode, 0));
+        SetComboIndex(_offlineCombo, IndexOr(OfflineValues, settings.OfflineAsOffSeconds, 2));
+        SetComboIndex(_themeCombo, IndexOr(ThemeValues, settings.ThemeMode, 0));
+        SetComboIndex(_opacityCombo, IndexOr(OpacityValues, settings.MenuOpacity, 0));
+        SetComboIndex(_cornerCombo, IndexOr(CornerValues, settings.MenuCorner, 1));
+        SetComboIndex(_accentCombo, settings.AccentIndex);
+
+
+
+
 
         _loading = false;
     }
@@ -1501,7 +1584,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
         LayoutOrderedCards();
 
-        if (_deviceButton != null) RebuildDeviceOptions();
+        if (_deviceCombo != null) RebuildDeviceOptions();
     }
 
     protected override void OnHandleCreated(EventArgs e)
