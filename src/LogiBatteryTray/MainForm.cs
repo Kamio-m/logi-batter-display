@@ -1170,6 +1170,13 @@ internal sealed class MainForm : Form, IMessageFilter
             }
         }
 
+        public void ForceRefresh()
+        {
+            _relayout?.Invoke();
+            RefreshNow();
+            Invalidate();
+        }
+
         public void RefreshNow()
         {
             var now = DateTime.UtcNow;
@@ -1199,6 +1206,21 @@ internal sealed class MainForm : Form, IMessageFilter
         }
     }
 
+    /// <summary>把下拉设置行的文字同步成当前设置值。</summary>
+    private void SyncSettingLabels()
+    {
+        if (_loading) return;
+
+        var settings = _app.Settings;
+
+        if (_accentButton != null) _accentButton.Text = Theme.AccentName(settings.AccentIndex);
+        if (_shapeButton != null) _shapeButton.Text = ShapeTexts[IndexOr(ShapeValues, settings.IconShapeMode, 0)];
+        if (_intervalButton != null) _intervalButton.Text = IntervalTexts[IndexOr(IntervalValues, settings.IntervalSeconds, 1)];
+        if (_offlineButton != null) _offlineButton.Text = OfflineTexts[IndexOr(OfflineValues, settings.OfflineAsOffSeconds, 2)];
+        if (_themeButton != null) _themeButton.Text = ThemeTexts[IndexOr(ThemeValues, settings.ThemeMode, 0)];
+        if (_opacityButton != null) _opacityButton.Text = OpacityTexts[IndexOr(OpacityValues, settings.MenuOpacity, 0)];
+        if (_cornerButton != null) _cornerButton.Text = CornerTexts[IndexOr(CornerValues, settings.MenuCorner, 1)];
+    }
     /// <summary>按设置里的顺序摆放所有卡片（第一张即托盘显示设备）。</summary>
     private void LayoutOrderedCards()
     {
@@ -1297,6 +1319,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
         foreach (var button in _accentButtons) button.BackColor = _accent;
         foreach (var card in _deviceCards) card.AccentColor = _accent;
+        foreach (var card in _manualCards) card.ForceRefresh();
 
         _sidebar.Invalidate();
         _devicePage.Invalidate(true);
@@ -1473,6 +1496,7 @@ internal sealed class MainForm : Form, IMessageFilter
         // 卡片对应的设备已经不存在 → 下一轮重建，避免显示过期内容
         if (staleCard) _cardsSignature = "";
 
+        SyncSettingLabels();
         RebuildManualCards();
 
         LayoutOrderedCards();
