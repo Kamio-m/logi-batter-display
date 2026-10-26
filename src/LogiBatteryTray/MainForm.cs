@@ -432,6 +432,12 @@ internal sealed class MainForm : Form, IMessageFilter
         var title = AddLabel(card, 28, cy, "LogiBatteryTray", 13f, FontStyle.Bold, _fore);
         cy = title.Bottom + S(4);
         var ver = AddLabel(card, 28, cy, $"版本 {typeof(MainForm).Assembly.GetName().Version?.ToString(3)}", 9f, FontStyle.Regular, _secondary);
+
+        string buildText = "";
+        try { buildText = $"构建 {System.IO.File.GetLastWriteTime(Application.ExecutablePath):MM-dd HH:mm}"; } catch { }
+        var build = AddLabel(card, 28, ver.Bottom - S(2), buildText, 8f, FontStyle.Regular, _secondary);
+        build.Location = new Point((int)(28 + ver.Width + (int)S(12)), build.Left);
+
         cy = ver.Bottom + S(12);
         var desc = AddLabel(card, 28, cy, "在任务栏显示罗技鼠标电量，直接读取 HID++ 2.0，不需要 G HUB。", 8.5f, FontStyle.Regular, _secondary);
         cy = desc.Bottom + S(6);
