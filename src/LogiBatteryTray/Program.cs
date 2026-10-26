@@ -531,6 +531,7 @@ internal static class Cli
             settings.ManualDevices = new List<ManualBatteryDevice>
             {
                 new() { Name = "lanctj 键盘", LifeDays = 60, LastChargedUtc = DateTime.UtcNow.AddDays(-18) },
+                new() { Name = "华硕 MW107", LifeDays = 90, LastChargedUtc = DateTime.UtcNow.AddDays(-40) },
             };
         }
 

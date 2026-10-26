@@ -29,6 +29,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private readonly List<DeviceCard> _deviceCards = new();
     private Panel _deviceList;
     private Panel _manualList;
+    private Button _addManualButton;
     private readonly List<ManualCard> _manualCards = new();
     private string _manualSignature = "";
     private Panel _actionsPanel;
@@ -207,6 +208,19 @@ internal sealed class MainForm : Form, IMessageFilter
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
         page.Content.Controls.Add(_manualList);
+
+        _addManualButton = new Button
+        {
+            Text = "＋ 添加估算设备",
+            Size = new Size((int)S(148), (int)S(36)),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = _cardColor,
+            ForeColor = _accent,
+            Visible = false,
+        };
+        _addManualButton.FlatAppearance.BorderColor = _border;
+        _addManualButton.Click += (_, _) => AddManualDevice();
+        page.Content.Controls.Add(_addManualButton);
 
         _actionsPanel = new Panel
         {
@@ -631,24 +645,16 @@ internal sealed class MainForm : Form, IMessageFilter
                 top += S(120) + S(12);
             }
 
-            var add = new Button
-            {
-                Text = "＋ 添加估算设备",
-                Location = new Point((int)S(28), (int)top),
-                Size = new Size((int)S(148), (int)S(36)),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = _cardColor,
-                ForeColor = _accent,
-            };
-            add.FlatAppearance.BorderColor = _border;
-            add.Click += (_, _) => AddManualDevice();
-            _manualList.Controls.Add(add);
-
-            top += S(36) + S(4);
             _manualList.Height = (int)Math.Max(top, S(10));
 
+            if (_addManualButton != null)
+            {
+                _addManualButton.Location = new Point((int)S(28), _manualList.Bottom + (int)S(6));
+                _addManualButton.Visible = true;
+            }
+
             if (_actionsPanel != null)
-                _actionsPanel.Top = _manualList.Bottom + (int)S(18);
+                _actionsPanel.Top = (_addManualButton == null ? _manualList.Bottom : _addManualButton.Bottom) + (int)S(18);
         }
 
         foreach (var card in _manualCards) card.RefreshNow();
@@ -731,7 +737,7 @@ internal sealed class MainForm : Form, IMessageFilter
                 Location = new Point(20, 24),
                 Size = new Size(72, 72),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.Transparent,
+                BackColor = surface,
             };
 
             _name = new Label
@@ -1103,7 +1109,7 @@ internal sealed class MainForm : Form, IMessageFilter
                 Location = new Point((int)(22 * Dpi), (int)(22 * Dpi)),
                 Size = new Size((int)(88 * Dpi), (int)(88 * Dpi)),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.Transparent,
+                BackColor = surface,
             };
             Controls.Add(_ring);
 
