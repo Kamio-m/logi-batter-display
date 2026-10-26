@@ -108,10 +108,17 @@ internal sealed class MainForm : Form, IMessageFilter
         DoubleBuffered = true;
 
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 800);
-        int startWidth = Math.Min((int)S(860), area.Width - (int)S(40));
-        int startHeight = Math.Min((int)S(620), area.Height - (int)S(60));
+        int startWidth = app.Settings.WindowWidth > 200
+            ? Math.Min(app.Settings.WindowWidth, area.Width)
+            : Math.Min((int)S(860), area.Width - (int)S(40));
+        int startHeight = app.Settings.WindowHeight > 200
+            ? Math.Min(app.Settings.WindowHeight, area.Height)
+            : Math.Min((int)S(620), area.Height - (int)S(60));
         ClientSize = new Size(startWidth, startHeight);
         MinimumSize = new Size((int)S(720), (int)S(460));
+
+        if (app.Settings.WindowMaximized)
+            WindowState = FormWindowState.Maximized;
 
         // ---------- 左侧功能栏 ----------
         _sidebar = new Panel
@@ -1306,6 +1313,22 @@ internal sealed class MainForm : Form, IMessageFilter
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         Application.RemoveMessageFilter(this);
+
+        // 记住窗口尺寸，下次打开保持一样
+        try
+        {
+            var settings = _app.Settings;
+            settings.WindowMaximized = WindowState == FormWindowState.Maximized;
+
+            var bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+            if (bounds.Width > 200 && bounds.Height > 200)
+            {
+                settings.WindowWidth = bounds.Width;
+                settings.WindowHeight = bounds.Height;
+            }
+            settings.Save();
+        }
+        catch { }
 
         // 现在是“窗口为主”，关掉窗口就退出程序（换配色重开时除外）
         if (!SuppressExitOnClose) _app.ExitAppPublic();
