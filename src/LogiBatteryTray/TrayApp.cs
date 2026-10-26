@@ -104,6 +104,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             ShowImageMargin = false,
             ShowCheckMargin = true,
             MinimumSize = new Size(250, 0),   // 固定最小宽度，避免换设备后菜单忽宽忽窄
+            Padding = new Padding(8, 4, 8, 6),
         };
         _menu.Opened += (_, _) =>
         {
@@ -435,6 +436,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
                 {
                     drop.ShowCheckMargin = true;
                     drop.ShowImageMargin = false;
+                    drop.Padding = new Padding(8, 4, 8, 6);
                     drop.Renderer = _menu.Renderer;
                     drop.Font = _menu.Font;
                     drop.BackColor = _menu.BackColor;

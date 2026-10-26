@@ -58,6 +58,10 @@ internal sealed class RoundedMenuRenderer : ToolStripProfessionalRenderer
         g.SmoothingMode = SmoothingMode.AntiAlias;
 
         var r = e.ImageRectangle;
+
+        // 勾选列固定在左侧内边距内，避免贴边裁切
+        r = new Rectangle(Math.Max(8, r.X), r.Y, Math.Max(12, r.Width), Math.Max(12, r.Height));
+
         float left = r.X + r.Width * 0.18f;
         float midY = r.Y + r.Height * 0.52f;
 
