@@ -535,6 +535,7 @@ internal static class Cli
             };
             settings.SelectedDeviceKey = "manual:lanctj 键盘";
             if (args != null && args.Contains("mousefirst")) settings.SelectedDeviceKey = "";
+            if (args != null && args.Contains("select2")) settings.SelectedDeviceKey = "manual:华硕 MW107";
         }
 
         var accentArg = args?.FirstOrDefault(a => a.StartsWith("accent", StringComparison.OrdinalIgnoreCase));
