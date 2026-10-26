@@ -798,8 +798,6 @@ internal sealed class MainForm : Form, IMessageFilter
 
             _icon = new PictureBox
             {
-                Location = new Point(22, 22),
-                Size = new Size(88, 88),
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = surface,
             };
@@ -842,7 +840,7 @@ internal sealed class MainForm : Form, IMessageFilter
             var refresh = new Button
             {
                 Text = "刚充满",
-                Size = new Size(84, 32),
+                Size = new Size(84, 32),   // 实际尺寸在 Layout 里按 DPI 设置
                 FlatStyle = FlatStyle.Flat,
                 BackColor = accent,
                 ForeColor = Color.White,
@@ -890,6 +888,14 @@ internal sealed class MainForm : Form, IMessageFilter
                 int reserve = (int)(84 + 16 + 64 + 8 + 16);
                 int maxWidth = Math.Max((int)(120 * dpi), Width - textX - reserve);
 
+                _icon.Location = new Point((int)(22 * dpi), (int)(22 * dpi));
+                _icon.Size = new Size((int)(88 * dpi), (int)(88 * dpi));
+
+                refresh.Size = new Size((int)(84 * dpi), (int)(32 * dpi));
+                remove.Size = new Size((int)(64 * dpi), (int)(32 * dpi));
+                refresh.Font = new Font("Segoe UI", 9f);
+                remove.Font = new Font("Segoe UI", 9f);
+
                 _name.Size = new Size(maxWidth, (int)(24 * dpi));
                 _status.Size = new Size(maxWidth, (int)(18 * dpi));
                 _detail.Size = new Size(maxWidth, (int)(16 * dpi));
@@ -913,9 +919,9 @@ internal sealed class MainForm : Form, IMessageFilter
                     _detail.Location = new Point(textX, _percent.Bottom + (int)(2 * dpi));
                 }
 
-                int buttonY = (int)((Height - 32) / 2);
-                refresh.Location = new Point(Width - (int)(84 + 16), buttonY);
-                remove.Location = new Point(Width - (int)(84 + 16 + 64 + 8), buttonY);
+                int buttonY = (int)((Height - (int)(32 * dpi)) / 2);
+                refresh.Location = new Point(Width - (int)((84 + 16) * dpi), buttonY);
+                remove.Location = new Point(Width - (int)((84 + 16 + 64 + 8) * dpi), buttonY);
 
                 _badge.Location = new Point(Width - _badge.Width - (int)(16 * dpi), (int)(16 * dpi));
             }
@@ -957,7 +963,7 @@ internal sealed class MainForm : Form, IMessageFilter
             var previous = _icon.Image;
             try
             {
-                using var icon = IconFactory.Create(88, new BatteryReading { Percent = percent }, _light);
+                using var icon = IconFactory.Create(Math.Max(32, _icon.Width), new BatteryReading { Percent = percent }, _light);
                 _icon.Image = icon.ToBitmap();
             }
             catch
