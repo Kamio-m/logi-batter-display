@@ -211,7 +211,7 @@ internal sealed class MainForm : Form, IMessageFilter
         _actionsPanel = new Panel
         {
             Location = P(0, y),
-            Size = new Size(page.Content.Width, (int)S(116)),
+            Size = new Size(page.Content.Width, (int)S(78)),
             BackColor = Color.Transparent,
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
@@ -227,9 +227,6 @@ internal sealed class MainForm : Form, IMessageFilter
         log.Parent = _actionsPanel;
         log.Click += (_, _) => _app.OpenLogFolderPublic();
 
-        var addManual = MakeButton(28, S(68), "添加估算设备", S(116));
-        addManual.Parent = _actionsPanel;
-        addManual.Click += (_, _) => AddManualDevice();
 
         // 未连接时覆盖整页
         _emptyState = new Panel { Dock = DockStyle.Fill, BackColor = _background, Visible = false };
@@ -605,10 +602,10 @@ internal sealed class MainForm : Form, IMessageFilter
             float top = 0;
             foreach (var device in devices)
             {
-                var card = new ManualCard(_cardColor, _border, _background, _fore, _secondary, _accent, device)
+                var card = new ManualCard(_cardColor, _border, _background, _fore, _secondary, _accent, _light, device)
                 {
                     Location = new Point((int)S(28), (int)top),
-                    Size = new Size(Math.Max((int)S(420), _manualList.Width - (int)S(56)), (int)S(112)),
+                    Size = new Size(Math.Max((int)S(420), _manualList.Width - (int)S(56)), (int)S(120)),
                     Radius = S(14),
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 };
@@ -631,9 +628,23 @@ internal sealed class MainForm : Form, IMessageFilter
 
                 _manualList.Controls.Add(card);
                 _manualCards.Add(card);
-                top += S(112) + S(12);
+                top += S(120) + S(12);
             }
 
+            var add = new Button
+            {
+                Text = "＋ 添加估算设备",
+                Location = new Point((int)S(28), (int)top),
+                Size = new Size((int)S(148), (int)S(36)),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = _cardColor,
+                ForeColor = _accent,
+            };
+            add.FlatAppearance.BorderColor = _border;
+            add.Click += (_, _) => AddManualDevice();
+            _manualList.Controls.Add(add);
+
+            top += S(36) + S(4);
             _manualList.Height = (int)Math.Max(top, S(10));
 
             if (_actionsPanel != null)
@@ -691,58 +702,69 @@ internal sealed class MainForm : Form, IMessageFilter
         UpdateView();
     }
 
-    /// <summary>估算设备卡片。</summary>
+    /// <summary>估算设备卡片：和数据卡一样的“图标 + 文字”排布。</summary>
     private sealed class ManualCard : CardPanel
     {
         private readonly Label _name;
-        private readonly Label _percent;
         private readonly Label _detail;
+        private readonly Label _percent;
+        private readonly PictureBox _icon;
         private readonly ManualBatteryDevice _device;
         private readonly Color _accent;
+        private readonly bool _light;
 
         public event EventHandler RefreshRequested;
         public event EventHandler DeleteRequested;
 
-        public ManualCard(Color surface, Color outline, Color background, Color fore, Color secondary, Color accent, ManualBatteryDevice device)
+        public ManualCard(Color surface, Color outline, Color background, Color fore, Color secondary,
+            Color accent, bool light, ManualBatteryDevice device)
         {
             Surface = surface;
             Outline = outline;
             Background = background;
             _device = device;
             _accent = accent;
+            _light = light;
+
+            _icon = new PictureBox
+            {
+                Location = new Point(20, 24),
+                Size = new Size(72, 72),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.Transparent,
+            };
 
             _name = new Label
             {
-                Text = device.Name,
                 AutoSize = true,
+                Location = new Point(106, 16),
                 Font = new Font("Segoe UI", 12.5f, FontStyle.Bold),
                 ForeColor = fore,
                 BackColor = Color.Transparent,
-                Location = new Point(20, 16),
-            };
-
-            _percent = new Label
-            {
-                AutoSize = true,
-                Font = new Font("Segoe UI", 22f, FontStyle.Bold),
-                ForeColor = accent,
-                BackColor = Color.Transparent,
-                Location = new Point(20, 44),
             };
 
             _detail = new Label
             {
                 AutoSize = true,
-                Font = new Font("Segoe UI", 8.5f),
+                Location = new Point(106, 42),
+                Font = new Font("Segoe UI", 9f),
                 ForeColor = secondary,
                 BackColor = Color.Transparent,
-                Location = new Point(120, 58),
+            };
+
+            _percent = new Label
+            {
+                AutoSize = true,
+                Location = new Point(106, 66),
+                Font = new Font("Segoe UI", 21f, FontStyle.Bold),
+                ForeColor = accent,
+                BackColor = Color.Transparent,
             };
 
             var refresh = new Button
             {
                 Text = "刚充满",
-                Size = new Size(84, 30),
+                Size = new Size(84, 32),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = accent,
                 ForeColor = Color.White,
@@ -754,38 +776,57 @@ internal sealed class MainForm : Form, IMessageFilter
             var remove = new Button
             {
                 Text = "删除",
-                Size = new Size(64, 30),
+                Size = new Size(64, 32),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fore,
+                BackColor = light ? Color.FromArgb(243, 243, 247) : Color.FromArgb(48, 48, 54),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
             };
+            remove.FlatAppearance.BorderColor = outline;
             remove.Click += (_, _) => DeleteRequested?.Invoke(this, EventArgs.Empty);
 
+            Controls.Add(_icon);
             Controls.Add(_name);
-            Controls.Add(_percent);
             Controls.Add(_detail);
+            Controls.Add(_percent);
             Controls.Add(refresh);
             Controls.Add(remove);
 
-            Resize += (_, _) =>
+            void Layout()
             {
-                refresh.Location = new Point(Width - 84 - 12, 16);
-                remove.Location = new Point(Width - 84 - 12 - 64 - 8, 16);
-            };
+                refresh.Location = new Point(Width - 84 - 16, (Height - 32) / 2);
+                remove.Location = new Point(Width - 84 - 16 - 64 - 8, (Height - 32) / 2);
+            }
 
-            refresh.Location = new Point(Width - 84 - 12, 16);
-            remove.Location = new Point(Width - 84 - 12 - 64 - 8, 16);
+            Resize += (_, _) => Layout();
+            Layout();
+            RefreshNow();
         }
 
         public void RefreshNow()
         {
             var now = DateTime.UtcNow;
             int percent = _device.RemainingPercent(now);
+
+            _name.Text = _device.Name;
+            _detail.Text = $"{_device.Describe(now)} · 估算";
             _percent.Text = $"{percent}%";
             _percent.ForeColor = percent < 20 ? Color.FromArgb(240, 190, 20) : _accent;
-            _detail.Text = _device.Describe(now);
+
+            var previous = _icon.Image;
+            try
+            {
+                using var icon = IconFactory.Create(72, new BatteryReading { Percent = percent }, _light);
+                _icon.Image = icon.ToBitmap();
+            }
+            catch
+            {
+                // 保留原图
+            }
+            previous?.Dispose();
         }
     }
+
     private void ShowPage(int index)
     {
         for (int i = 0; i < _pages.Length; i++)
