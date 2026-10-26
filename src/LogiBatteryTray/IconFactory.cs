@@ -477,7 +477,7 @@ internal static class IconFactory
         bool small = iconSize <= 26f;
 
         // 小图标用位图字体渲染，边缘更清晰；大图标再用抗锯齿
-        float size = iconSize * (text.Length >= 3 ? 0.78f : 0.98f);
+        float size = iconSize * 0.78f;   // 2/3 位数统一基准，视觉大小一致
         if (small) size = (float)Math.Round(size);
 
         Font font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
@@ -487,16 +487,16 @@ internal static class IconFactory
 
         try
         {
+            g.TextRenderingHint = small
+                ? TextRenderingHint.SingleBitPerPixelGridFit
+                : TextRenderingHint.AntiAliasGridFit;
+
             while (size > 4f && g.MeasureString(text, font, PointF.Empty, typographic).Width > rect.Width * 0.98f)
             {
                 size -= small ? 1f : 0.5f;
                 font.Dispose();
                 font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
             }
-
-            g.TextRenderingHint = small
-                ? TextRenderingHint.SingleBitPerPixelGridFit
-                : TextRenderingHint.AntiAliasGridFit;
 
             using var brush = new SolidBrush(color);
             g.DrawString(text, font, brush, rect, typographic);
