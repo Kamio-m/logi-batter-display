@@ -1978,8 +1978,6 @@ internal sealed class MainForm : Form, IMessageFilter
         private LogiDevice _lastDevice;
         private bool _online;
         private bool _selected;
-        private bool _percentShape;
-        private Action _relayout;
         private bool _percentMode;
 
         public DeviceCard(Color surface, Color outline, Color background, Color fore, Color secondary, bool light, Color accent)
@@ -2212,8 +2210,6 @@ internal sealed class MainForm : Form, IMessageFilter
         private Color _accent;
         private bool _hover;
         private bool _selected;
-        private bool _percentShape;
-        private Action _relayout;
 
         public NavButton(string glyph, string text, Color fore, Color muted, Color accent)
         {

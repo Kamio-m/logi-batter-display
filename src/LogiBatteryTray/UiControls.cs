@@ -591,8 +591,6 @@ internal sealed class NumberField : Control
     private int _min;
     private int _max = 100;
     private string _buffer = "";
-    private bool _hoverUp;
-    private bool _hoverDown;
 
     public NumberField()
     {
@@ -741,8 +739,6 @@ internal sealed class NumberField : Control
         Invalidate();
     }
 
-    protected override void OnMouseEnter(EventArgs e) { _hoverUp = true; Invalidate(); base.OnMouseEnter(e); }
-    protected override void OnMouseLeave(EventArgs e) { _hoverUp = false; Invalidate(); base.OnMouseLeave(e); }
 
     private static GraphicsPath Rounded(RectangleF rect, float radius)
     {
