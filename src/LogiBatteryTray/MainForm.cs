@@ -453,17 +453,26 @@ internal sealed class MainForm : Form, IMessageFilter
 
         if (ClientRectangle.Contains(PointToClient(Cursor.Position)))
         {
-            // 目标卡片：如果在别张卡上松手，就按“互换”处理
+            var order = _app.Settings.CardOrder ??= new List<string>();
+            foreach (var card in _deviceCards) if (!order.Contains(card.Key)) order.Add(card.Key);
+            foreach (var card in _manualCards)
+            {
+                string k = "manual:" + card.DeviceName;
+                if (!order.Contains(k)) order.Add(k);
+            }
+
+            order.Remove(key);
+
+            // 落到哪张卡上就插到那张卡的位置；落在空白处放到最后
             string targetKey = CardKeyAt(Cursor.Position);
-            bool draggedIsCurrent = key == SelectedKey();
+            int index = targetKey != null && targetKey != key
+                ? Math.Max(0, order.IndexOf(targetKey))
+                : order.Count;
 
-            string next = key;
-            if (targetKey != null && targetKey != key && draggedIsCurrent)
-                next = targetKey;      // 把第一张拖到别人身上 → 让位
-            else if (targetKey == key)
-                next = key;
+            order.Insert(Math.Min(index, order.Count), key);
 
-            _app.Settings.SelectedDeviceKey = next;
+            _app.Settings.SelectedDeviceKey = order[0];
+            _app.Settings.Save();
             _app.ApplySettingsFromWindow();
             UpdateView();
         }
@@ -1190,6 +1199,72 @@ internal sealed class MainForm : Form, IMessageFilter
         }
     }
 
+    /// <summary>按设置里的顺序摆放所有卡片（第一张即托盘显示设备）。</summary>
+    private void LayoutOrderedCards()
+    {
+        if (_deviceList == null || _manualList == null) return;
+
+        var all = _deviceCards.Cast<Control>().Concat(_manualCards.Cast<Control>()).ToList();
+        if (all.Count == 0)
+        {
+            if (_addManualButton != null) _addManualButton.Top = _listTopY;
+            if (_actionsPanel != null) _actionsPanel.Top = (_addManualButton == null ? _listTopY : _addManualButton.Bottom) + CardGap;
+            return;
+        }
+
+        string KeyOf(Control c) => c switch
+        {
+            DeviceCard d => d.Key,
+            ManualCard m => "manual:" + m.DeviceName,
+            _ => "",
+        };
+
+        var order = _app.Settings.CardOrder ??= new List<string>();
+        order.RemoveAll(k => !all.Any(c => KeyOf(c) == k));
+        foreach (var card in all)
+        {
+            string k = KeyOf(card);
+            if (k.Length > 0 && !order.Contains(k)) order.Add(k);
+        }
+
+        int width = Math.Max((int)S(420), _deviceList.Width - (int)S(56));
+        float top = 0;
+
+        foreach (var key in order)
+        {
+            var card = all.FirstOrDefault(c => KeyOf(c) == key);
+            if (card == null) continue;
+
+            if (card.Parent != _deviceList)
+            {
+                card.Parent?.Controls.Remove(card);
+                _deviceList.Controls.Add(card);
+            }
+
+            card.Location = new Point((int)S(28), (int)top);
+            card.Size = new Size(width, (int)S(152));
+            card.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            top += S(152) + CardGap;
+        }
+
+        _deviceList.Height = (int)Math.Max(top, S(10));
+        _manualList.Height = 0;
+
+        if (_addManualButton != null)
+            _addManualButton.Top = _deviceList.Bottom + CardGap;
+
+        if (_actionsPanel != null)
+            _actionsPanel.Top = (_addManualButton == null ? _deviceList.Bottom : _addManualButton.Bottom) + CardGap;
+
+        // 第一张 = 托盘显示设备
+        if (order.Count > 0 && (_app.Settings.SelectedDeviceKey ?? "") != order[0])
+        {
+            _app.Settings.SelectedDeviceKey = order[0];
+            _app.Settings.Save();
+        }
+
+        _devicePage?.PerformLayout();
+    }
     private void ShowPage(int index)
     {
         for (int i = 0; i < _pages.Length; i++)
@@ -1400,7 +1475,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
         RebuildManualCards();
 
-        ArrangeLists();
+        LayoutOrderedCards();
 
         if (_deviceButton != null) RebuildDeviceOptions();
     }

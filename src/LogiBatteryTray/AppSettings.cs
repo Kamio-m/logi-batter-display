@@ -33,6 +33,9 @@ internal sealed class AppSettings
     public int WindowHeight { get; set; }
     public bool WindowMaximized { get; set; }
 
+    /// <summary>设备卡片的显示顺序（第一张即托盘显示设备）。</summary>
+    public List<string> CardOrder { get; set; } = new();
+
     public int AccentIndex { get; set; }
 
     /// <summary>图标形状：0=圆环，1=电池。</summary>
