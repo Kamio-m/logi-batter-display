@@ -1106,7 +1106,7 @@ internal sealed class MainForm : Form, IMessageFilter
         var daysBox = new NumericUpDown
         {
             Minimum = 1,
-            Maximum = 3650,
+            Maximum = 99999,
             Value = 60,
             Location = P(26, 214),
             Width = (int)S(120),
@@ -1115,6 +1115,19 @@ internal sealed class MainForm : Form, IMessageFilter
             ForeColor = _fore,
             Font = new Font("Segoe UI", 10f),
         };
+
+        var unitCombo = new RoundedDropDown
+        {
+            Surface = _background,
+            HoverSurface = ButtonHover,
+            TextColor = _fore,
+            AccentColor = _accent,
+            PopupBackground = _cardColor,
+            Size = new Size((int)S(96), (int)S(32)),
+            Location = P(156, 211),
+        };
+        unitCombo.SetItems(new[] { "天", "小时", "分钟" });
+        unitCombo.SelectedIndex = 0;
 
         var ok = new RoundedButton
         {
@@ -1159,7 +1172,7 @@ internal sealed class MainForm : Form, IMessageFilter
             };
         }
 
-        dialog.Controls.AddRange(new Control[] { title, hint, detectedLabel, detectedCombo, nameLabel, nameBox, daysLabel, daysBox, ok, cancel });
+        dialog.Controls.AddRange(new Control[] { title, hint, detectedLabel, detectedCombo, nameLabel, nameBox, daysLabel, daysBox, unitCombo, ok, cancel });
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
         string name = nameBox.Text.Trim();
@@ -1176,10 +1189,18 @@ internal sealed class MainForm : Form, IMessageFilter
 
         name = unique;
 
+        double amount = (double)daysBox.Value;
+        double lifeDays = unitCombo.SelectedIndex switch
+        {
+            1 => amount / 24.0,      // 小时
+            2 => amount / 1440.0,    // 分钟
+            _ => amount,             // 天
+        };
+
         _app.Settings.ManualDevices.Add(new ManualBatteryDevice
         {
             Name = name,
-            LifeDays = (int)daysBox.Value,
+            LifeDays = Math.Max(1.0 / 1440.0, lifeDays),
             LastChargedUtc = DateTime.UtcNow,
         });
 
