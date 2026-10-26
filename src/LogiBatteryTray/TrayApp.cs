@@ -711,11 +711,30 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         return _settings.ManualDevices?.FirstOrDefault(d => d.Name == name);
     }
 
-    /// <summary>把标题补齐到固定宽度，保证菜单宽度不随设备名变化。</summary>
-    private static string PadHeader(string text, int minWidth = 26)
+    /// <summary>把标题补齐到固定像素宽度，保证菜单宽度不随设备名变化。</summary>
+    private static string PadHeader(string text, int targetPixels = 300)
     {
-        if (text.Length >= minWidth) return text;
-        return text + new string('\u3000', minWidth - text.Length);
+        var font = new Font("Segoe UI", 9f);
+        try
+        {
+            int width = TextRenderer.MeasureText(text, font).Width;
+            if (width >= targetPixels) return text;
+
+            var builder = new System.Text.StringBuilder(text);
+            int spaceWidth = Math.Max(6, TextRenderer.MeasureText("\u3000", font).Width);
+
+            while (width < targetPixels)
+            {
+                builder.Append('\u3000');
+                width += spaceWidth;
+            }
+
+            return builder.ToString();
+        }
+        finally
+        {
+            font.Dispose();
+        }
     }
     private void Apply(bool ok)
     {
