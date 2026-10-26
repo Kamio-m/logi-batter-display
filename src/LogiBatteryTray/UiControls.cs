@@ -397,6 +397,193 @@ internal sealed class RoundedButton : Control
         return path;
     }
 }
+/// <summary>圆角下拉列表：自绘按钮 + 深色圆角弹出列表。</summary>
+internal sealed class RoundedDropDown : Control
+{
+    private readonly List<string> _items = new();
+    private int _selectedIndex = -1;
+    private bool _hover;
+    private bool _suppress;
+
+    public RoundedDropDown()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
+        Cursor = Cursors.Hand;
+        Font = new Font("Segoe UI", 9f);
+        Size = new Size(168, 30);
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color Surface { get; set; } = Color.FromArgb(48, 48, 54);
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color HoverSurface { get; set; } = Color.FromArgb(56, 56, 63);
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color TextColor { get; set; } = Color.White;
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color PopupBackground { get; set; } = Color.FromArgb(40, 40, 45);
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color AccentColor { get; set; } = Color.FromArgb(58, 130, 255);
+
+    public IReadOnlyList<string> Items => _items;
+
+    public void SetItems(IEnumerable<string> items)
+    {
+        _items.Clear();
+        _items.AddRange(items);
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int SelectedIndex
+    {
+        get => _selectedIndex;
+        set
+        {
+            int clamped = _items.Count == 0 ? -1 : Math.Clamp(value, -1, _items.Count - 1);
+            if (clamped == _selectedIndex) return;
+
+            _selectedIndex = clamped;
+            Invalidate();
+
+            if (!_suppress) SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public event EventHandler SelectedIndexChanged;
+
+    protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        if (e.Button == MouseButtons.Left) ShowPopup();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        var rect = new RectangleF(0.5f, 0.5f, Width - 1f, Height - 1f);
+        using (var path = RoundedPath(rect, Height * 0.35f))
+        using (var brush = new SolidBrush(_hover ? HoverSurface : Surface))
+            g.FillPath(brush, path);
+
+        string text = _selectedIndex >= 0 && _selectedIndex < _items.Count ? _items[_selectedIndex] : "";
+        TextRenderer.DrawText(g, text, Font, new Rectangle(12, 0, Width - 34, Height), TextColor,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+        // 小箭头
+        var ax = Width - 20f;
+        var ay = Height / 2f - 2f;
+        using var pen = new Pen(TextColor, 1.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        g.DrawLines(pen, new[]
+        {
+            new PointF(ax - 4, ay), new PointF(ax, ay + 4), new PointF(ax + 4, ay),
+        });
+    }
+
+    private void ShowPopup()
+    {
+        if (_items.Count == 0) return;
+
+        var popup = new Form
+        {
+            FormBorderStyle = FormBorderStyle.None,
+            StartPosition = FormStartPosition.Manual,
+            ShowInTaskbar = false,
+            TopMost = true,
+            BackColor = PopupBackground,
+        };
+
+        int rowHeight = (int)(Math.Max(22, Height - 6));
+        int height = _items.Count * rowHeight + 8;
+
+        var list = new ListBox
+        {
+            BorderStyle = BorderStyle.None,
+            IntegralHeight = false,
+            DrawMode = DrawMode.OwnerDrawFixed,
+            ItemHeight = rowHeight,
+            BackColor = PopupBackground,
+            ForeColor = TextColor,
+            Font = Font,
+            Location = new Point(4, 4),
+            Size = new Size(Width - 8, height - 8),
+        };
+
+        foreach (var item in _items) list.Items.Add(item);
+        if (_selectedIndex >= 0) list.SelectedIndex = _selectedIndex;
+
+        list.DrawItem += (_, e) =>
+        {
+            bool hot = (e.State & DrawItemState.Selected) != 0;
+            using (var brush = new SolidBrush(hot ? AccentColor : PopupBackground))
+                e.Graphics.FillRectangle(brush, e.Bounds);
+
+            string item = e.Index >= 0 && e.Index < list.Items.Count ? list.Items[e.Index]?.ToString() : "";
+            TextRenderer.DrawText(e.Graphics, item, Font, new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height),
+                hot ? Color.White : TextColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+        };
+
+        void Choose()
+        {
+            if (list.SelectedIndex >= 0)
+            {
+                _suppress = false;
+                SelectedIndex = list.SelectedIndex;
+            }
+            popup.Close();
+        }
+
+        list.MouseUp += (_, _) => Choose();
+        list.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) Choose(); };
+
+        popup.Controls.Add(list);
+        popup.Deactivate += (_, _) => popup.Close();
+
+        var origin = PointToScreen(new Point(0, Height + 4));
+        var screen = Screen.FromControl(this).WorkingArea;
+        if (origin.Y + height > screen.Bottom) origin = PointToScreen(new Point(0, -height - 4));
+
+        popup.Size = new Size(Width, height);
+        popup.Location = origin;
+        popup.Region = new Region(RoundedPath(new RectangleF(0, 0, popup.Width, popup.Height), 10));
+
+        popup.Show(this);
+        list.Focus();
+    }
+
+    private static GraphicsPath RoundedPath(RectangleF rect, float radius)
+    {
+        var path = new GraphicsPath();
+        float diameter = Math.Min(radius * 2f, Math.Min(rect.Width, rect.Height));
+        if (diameter <= 1f) { path.AddRectangle(rect); return path; }
+
+        var arc = new RectangleF(rect.X, rect.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = rect.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = rect.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = rect.X;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+}
 /// <summary>细长的自绘滚动条。</summary>
 internal sealed class SlimScrollBar : Control
 {
