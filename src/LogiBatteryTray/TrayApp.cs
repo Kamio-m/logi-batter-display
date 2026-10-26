@@ -550,7 +550,16 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     {
         if (_mainForm != null && !_mainForm.IsDisposed)
         {
+            // 窗口可能被隐藏到托盘了：先显示再提到前台
+            if (!_mainForm.Visible) _mainForm.Show();
+
+            if (_mainForm.WindowState == FormWindowState.Minimized)
+                _mainForm.WindowState = FormWindowState.Normal;
+
+            _mainForm.TopMost = true;
+            _mainForm.TopMost = false;
             _mainForm.Activate();
+            _mainForm.BringToFront();
             return;
         }
 
