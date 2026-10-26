@@ -123,7 +123,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _menu.Items.Add(BuildShapeMenu());
         _menu.Items.Add(BuildOfflineMenu());
         _menu.Opened += (_, _) => RebuildDeviceMenu();
-        _menu.Opening += (_, _) => ApplyCheckMarks();
+
         _menu.Items.Add(new ToolStripSeparator());
         ApplyMenuStyle();
         _menu.Items.Add(new ToolStripSeparator());
@@ -461,7 +461,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
                 string baseText = item.Tag as string ?? item.Text.TrimStart('✓', ' ');
                 item.Tag = baseText;
 
-                item.Text = item.Checked ? "✓   " + baseText : "     " + baseText;
+                item.Text = baseText;
 
                 Visit(item.DropDownItems);
             }
@@ -478,7 +478,10 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             int estimated = manual.RemainingPercent(DateTime.UtcNow);
             string key = "manual:" + manual.Name;
 
-            var item = new ToolStripMenuItem($"{manual.Name}（约 {estimated}%）", null, (_, _) =>
+            bool isCurrent = (_settings.SelectedDeviceKey ?? "") == key;
+            string manualLabel = $"{manual.Name}（约 {estimated}%）" + (isCurrent ? "　当前" : "");
+
+            var item = new ToolStripMenuItem(manualLabel, null, (_, _) =>
             {
                 _settings.SelectedDeviceKey = key;
                 _settings.Save();
@@ -524,9 +527,11 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             string percent = device.Battery?.Percent is int value ? $"{value}%" : "--";
             string state = device.Online ? "" : device.PoweredOff ? "（停用）" : "（休眠）";
 
-            var item = new ToolStripMenuItem($"{device.Name}   {percent}{state}")
+            bool isCurrentDevice = (selected.Length > 0 ? selected : currentKey) == key;
+
+            var item = new ToolStripMenuItem($"{device.Name}   {percent}{state}" + (isCurrentDevice ? "　当前" : ""))
             {
-                Checked = (selected.Length > 0 ? selected : currentKey) == key,
+                Checked = isCurrentDevice,
             };
 
             item.Click += (_, _) =>
