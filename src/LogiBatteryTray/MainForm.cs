@@ -993,7 +993,7 @@ internal sealed class MainForm : Form, IMessageFilter
             Text = "添加估算设备",
             FormBorderStyle = FormBorderStyle.None,
             StartPosition = FormStartPosition.CenterParent,
-            ClientSize = new Size((int)S(380), (int)S(236)),
+            ClientSize = new Size((int)S(380), (int)S(296)),
             BackColor = _cardColor,
             ForeColor = _fore,
             Font = new Font("Segoe UI", 9f),
@@ -1033,19 +1033,46 @@ internal sealed class MainForm : Form, IMessageFilter
             BackColor = Color.Transparent,
         };
 
+        // 检测到的、读不出电量的外设
+        var candidates = PeripheralScanner.Scan();
+
+        var detectedLabel = new Label
+        {
+            Text = candidates.Count > 0 ? "检测到的设备（读不到电量）" : "未检测到其他外设，可手动输入名称",
+            AutoSize = true,
+            Location = P(26, 74),
+            ForeColor = _secondary,
+            BackColor = Color.Transparent,
+        };
+
+        var detectedCombo = new RoundedDropDown
+        {
+            Surface = _background,
+            HoverSurface = ButtonHover,
+            TextColor = _fore,
+            AccentColor = _accent,
+            PopupBackground = _cardColor,
+            Size = new Size((int)S(328), (int)S(32)),
+            Location = P(26, 94),
+        };
+
+        detectedCombo.SetItems(candidates.Count > 0
+            ? candidates.Select(c => c.Name).ToArray()
+            : new[] { "（无）" });
+
         var nameLabel = new Label
         {
             Text = "设备名称",
             AutoSize = true,
-            Location = P(26, 84),
+            Location = P(26, 134),
             ForeColor = _secondary,
             BackColor = Color.Transparent,
         };
 
         var nameBox = new TextBox
         {
-            Text = "键盘",
-            Location = P(26, 106),
+            Text = candidates.Count > 0 ? candidates[0].Name : "键盘",
+            Location = P(26, 156),
             Width = (int)S(328),
             BorderStyle = BorderStyle.FixedSingle,
             BackColor = _background,
@@ -1057,7 +1084,7 @@ internal sealed class MainForm : Form, IMessageFilter
         {
             Text = "续航天数（充满到没电）",
             AutoSize = true,
-            Location = P(26, 144),
+            Location = P(26, 192),
             ForeColor = _secondary,
             BackColor = Color.Transparent,
         };
@@ -1067,7 +1094,7 @@ internal sealed class MainForm : Form, IMessageFilter
             Minimum = 1,
             Maximum = 3650,
             Value = 60,
-            Location = P(26, 166),
+            Location = P(26, 214),
             Width = (int)S(120),
             BorderStyle = BorderStyle.FixedSingle,
             BackColor = _background,
@@ -1079,7 +1106,7 @@ internal sealed class MainForm : Form, IMessageFilter
         {
             Text = "添加",
             Size = new Size((int)S(96), (int)S(36)),
-            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 24), (int)S(182)),
+            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 24), (int)S(242)),
             Surface = _accent,
             HoverSurface = ControlPaint.Light(_accent, 0.08f),
             TextColor = Color.White,
@@ -1091,7 +1118,7 @@ internal sealed class MainForm : Form, IMessageFilter
         {
             Text = "取消",
             Size = new Size((int)S(96), (int)S(36)),
-            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 96 + 24 + 8), (int)S(182)),
+            Location = new Point(dialog.ClientSize.Width - (int)S(96 + 96 + 24 + 8), (int)S(242)),
             Surface = ButtonBack,
             HoverSurface = ButtonHover,
             TextColor = _fore,
@@ -1109,7 +1136,16 @@ internal sealed class MainForm : Form, IMessageFilter
         title.MouseDown += BeginDrag; title.MouseMove += DoDrag; title.MouseUp += EndDrag;
         hint.MouseDown += BeginDrag; hint.MouseMove += DoDrag; hint.MouseUp += EndDrag;
 
-        dialog.Controls.AddRange(new Control[] { title, hint, nameLabel, nameBox, daysLabel, daysBox, ok, cancel });
+        if (candidates.Count > 0)
+        {
+            detectedCombo.SelectedIndexChanged += (_, _) =>
+            {
+                int index = detectedCombo.SelectedIndex;
+                if (index >= 0 && index < candidates.Count) nameBox.Text = candidates[index].Name;
+            };
+        }
+
+        dialog.Controls.AddRange(new Control[] { title, hint, detectedLabel, detectedCombo, nameLabel, nameBox, daysLabel, daysBox, ok, cancel });
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
         string name = nameBox.Text.Trim();
