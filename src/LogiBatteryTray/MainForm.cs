@@ -769,6 +769,8 @@ internal sealed class MainForm : Form, IMessageFilter
         private readonly Color _borderRestore;
         private readonly bool _light;
         private bool _selected;
+        private bool _percentShape;
+        private Action _relayout;
 
         public event EventHandler RefreshRequested;
         public event EventHandler DeleteRequested;
@@ -884,17 +886,24 @@ internal sealed class MainForm : Form, IMessageFilter
                 _status.Size = new Size(maxWidth, (int)(18 * dpi));
                 _detail.Size = new Size(maxWidth, (int)(16 * dpi));
 
-                float y = 18 * dpi;
-                _name.Location = new Point(textX, (int)y);
-                y = _name.Bottom + 2 * dpi;
+                _name.Location = new Point(textX, (int)(18 * dpi));
+                _status.Location = new Point(textX, _name.Bottom + (int)(2 * dpi));
 
-                _status.Location = new Point(textX, (int)y);
-                y = _status.Bottom + 2 * dpi;
-
-                _percent.Location = new Point(textX, (int)y);
-                y = _percent.Bottom + 2 * dpi;
-
-                _detail.Location = new Point(textX, (int)y);
+                if (_percentShape)
+                {
+                    // 百分比样式：大数字占图标位置，说明行固定在第 4 行
+                    _icon.Visible = false;
+                    _percent.Font = new Font("Segoe UI", 32f, FontStyle.Bold);
+                    _percent.Location = new Point((int)(26 * dpi), (int)(32 * dpi));
+                    _detail.Location = new Point(textX, (int)(96 * dpi));
+                }
+                else
+                {
+                    _icon.Visible = true;
+                    _percent.Font = new Font("Segoe UI", 22f, FontStyle.Bold);
+                    _percent.Location = new Point(textX, _status.Bottom + (int)(2 * dpi));
+                    _detail.Location = new Point(textX, _percent.Bottom + (int)(2 * dpi));
+                }
 
                 int buttonY = (int)((Height - 32) / 2);
                 refresh.Location = new Point(Width - (int)(84 + 16), buttonY);
@@ -903,8 +912,9 @@ internal sealed class MainForm : Form, IMessageFilter
                 _badge.Location = new Point(Width - _badge.Width - (int)(16 * dpi), (int)(16 * dpi));
             }
 
-            Resize += (_, _) => Layout();
-            Layout();
+            _relayout = Layout;
+            Resize += (_, _) => _relayout();
+            _relayout();
             RefreshNow();
         }
 
@@ -934,18 +944,7 @@ internal sealed class MainForm : Form, IMessageFilter
             _percent.ForeColor = percent < 20 ? Color.FromArgb(240, 190, 20) : _accent;
             _detail.Text = _device.Describe(now);
 
-            bool percentShape = IconFactory.Shape == IconShape.Percent;
-            _icon.Visible = !percentShape;
-
-            if (percentShape)
-            {
-                _percent.Font = new Font("Segoe UI", 32f, FontStyle.Bold);
-                _percent.Location = new Point(26, 32);
-            }
-            else
-            {
-                _percent.Font = new Font("Segoe UI", 22f, FontStyle.Bold);
-            }
+            _percentShape = IconFactory.Shape == IconShape.Percent;
 
             var previous = _icon.Image;
             try
@@ -958,6 +957,8 @@ internal sealed class MainForm : Form, IMessageFilter
                 // 保留原图
             }
             previous?.Dispose();
+
+            PerformLayout();
         }
     }
 
@@ -1234,6 +1235,8 @@ internal sealed class MainForm : Form, IMessageFilter
         private BatteryReading _battery;
         private bool _online;
         private bool _selected;
+        private bool _percentShape;
+        private Action _relayout;
         private bool _percentMode;
 
         public DeviceCard(Color surface, Color outline, Color background, Color fore, Color secondary, bool light, Color accent)
@@ -1447,6 +1450,8 @@ internal sealed class MainForm : Form, IMessageFilter
         private Color _accent;
         private bool _hover;
         private bool _selected;
+        private bool _percentShape;
+        private Action _relayout;
 
         public NavButton(string glyph, string text, Color fore, Color muted, Color accent)
         {
