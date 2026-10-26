@@ -474,32 +474,45 @@ internal static class IconFactory
             : lightTaskbar ? Color.FromArgb(255, 24, 24, 28) : Color.FromArgb(255, 252, 252, 255);
 
         float iconSize = Math.Min(rect.Width, rect.Height);
-        bool small = iconSize <= 26f;
+        bool small = iconSize <= 24f;
 
-        // 小图标用位图字体渲染，边缘更清晰；大图标再用抗锯齿
-        float size = iconSize * 0.78f;   // 2/3 位数统一基准，视觉大小一致
+        var typographic = (StringFormat)StringFormat.GenericTypographic.Clone();
+        typographic.Alignment = StringAlignment.Center;
+        typographic.LineAlignment = StringAlignment.Center;
+        typographic.FormatFlags |= StringFormatFlags.NoClip;
+
+        // 以高度为准确定字号，让数字尽量占满图标
+        float size = iconSize * 0.94f;
         if (small) size = (float)Math.Round(size);
 
         Font font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
-        var typographic = StringFormat.GenericTypographic;
-        typographic.Alignment = StringAlignment.Center;
-        typographic.LineAlignment = StringAlignment.Center;
 
         try
         {
-            g.TextRenderingHint = small
-                ? TextRenderingHint.SingleBitPerPixelGridFit
-                : TextRenderingHint.AntiAliasGridFit;
+            var measured = g.MeasureString(text, font, PointF.Empty, typographic);
+            if (measured.Height > iconSize)
+            {
+                size *= iconSize / measured.Height;
+                font.Dispose();
+                font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
+            }
 
-            while (size > 4f && g.MeasureString(text, font, PointF.Empty, typographic).Width > rect.Width * 0.98f)
+            while (size > 4f && g.MeasureString(text, font, PointF.Empty, typographic).Width > rect.Width * 0.99f)
             {
                 size -= small ? 1f : 0.5f;
                 font.Dispose();
                 font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
             }
 
+            g.TextRenderingHint = small
+                ? TextRenderingHint.SingleBitPerPixelGridFit
+                : TextRenderingHint.AntiAliasGridFit;
+
             using var brush = new SolidBrush(color);
-            g.DrawString(text, font, brush, rect, typographic);
+
+            // 略微下移，补偿数字字形重心
+            var area = new RectangleF(rect.X, rect.Y + iconSize * 0.02f, rect.Width, rect.Height);
+            g.DrawString(text, font, brush, area, typographic);
         }
         finally
         {
