@@ -802,8 +802,34 @@ internal sealed class MainForm : Form, IMessageFilter
 
             void Layout()
             {
-                refresh.Location = new Point(Width - 84 - 16, (Height - 32) / 2);
-                remove.Location = new Point(Width - 84 - 16 - 64 - 8, (Height - 32) / 2);
+                float dpi = DeviceDpi / 96f;
+
+                // 右侧按钮固定占位，文字区绝不越界
+                int buttonY = (int)((Height - 32) / 2);
+                refresh.Location = new Point(Width - (int)(84 + 16), buttonY);
+                remove.Location = new Point(Width - (int)(84 + 16 + 64 + 8), buttonY);
+
+                int textX = (int)(126 * dpi);
+                int reserve = (int)(84 + 16 + 64 + 8 + 16);
+                int maxWidth = Math.Max((int)(120 * dpi), Width - textX - reserve);
+
+                // 固定行高 + 省略号，永远不会换行挤压或压到按钮
+                _name.AutoSize = false;
+                _name.AutoEllipsis = true;
+                _name.Size = new Size(maxWidth, (int)(26 * dpi));
+
+                _detail.AutoSize = false;
+                _detail.AutoEllipsis = true;
+                _detail.Size = new Size(maxWidth, (int)(20 * dpi));
+
+                float y = 18 * dpi;
+                _name.Location = new Point(textX, (int)y);
+                y = _name.Bottom + 2 * dpi;
+
+                _detail.Location = new Point(textX, (int)y);
+                y = _detail.Bottom + 4 * dpi;
+
+                _percent.Location = new Point(textX, (int)y);
             }
 
             Resize += (_, _) => Layout();
@@ -820,6 +846,8 @@ internal sealed class MainForm : Form, IMessageFilter
             _detail.Text = $"{_device.Describe(now)} · 估算";
             _percent.Text = $"{percent}%";
             _percent.ForeColor = percent < 20 ? Color.FromArgb(240, 190, 20) : _accent;
+
+            PerformLayout();
 
             var previous = _icon.Image;
             try
