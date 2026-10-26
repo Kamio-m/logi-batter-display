@@ -608,41 +608,63 @@ internal sealed class MainForm : Form, IMessageFilter
     private ScrollHost BuildAboutPage()
     {
         var page = NewPage();
-        float y = PlaceTitle(page.Content, "关于", "LogiBatteryTray");
-        y += S(10);
+        float y = PlaceTitle(page.Content, "关于", "版本信息与常用入口");
+        y += S(12);
 
-        var card = NewCard(Math.Max((int)S(420), page.Content.Width - (int)S(56)), (int)S(170));
+        var card = NewCard(Math.Max((int)S(420), page.Content.Width - (int)S(56)), (int)S(208));
         card.Location = P(28, y);
         page.Content.Controls.Add(card);
 
-        float cy = S(26);
-        var title = AddLabel(card, 28, cy, "LogiBatteryTray", 13f, FontStyle.Bold, _fore);
-        cy = title.Bottom + S(4);
-        var ver = AddLabel(card, 28, cy, $"版本 {typeof(MainForm).Assembly.GetName().Version?.ToString(3)}", 9f, FontStyle.Regular, _secondary);
+        // 应用名
+        var title = AddLabel(card, 28, 24, "LogiBatteryTray", 16f, FontStyle.Bold, _fore);
 
+        // 版本 + 构建时间（同一行）
         string buildText = "";
-        try { buildText = $"构建 {System.IO.File.GetLastWriteTime(Application.ExecutablePath):MM-dd HH:mm}"; } catch { }
-        var build = AddLabel(card, 28, ver.Bottom - S(2), buildText, 8f, FontStyle.Regular, _secondary);
-        build.Location = new Point((int)(28 + ver.Width + (int)S(12)), build.Left);
+        try { buildText = System.IO.File.GetLastWriteTime(Application.ExecutablePath).ToString("yyyy-MM-dd HH:mm"); } catch { }
 
-        cy = ver.Bottom + S(12);
-        var desc = AddLabel(card, 28, cy, "在任务栏显示罗技鼠标电量，直接读取 HID++ 2.0，不需要 G HUB。", 8.5f, FontStyle.Regular, _secondary);
-        cy = desc.Bottom + S(6);
-        AddLabel(card, 28, cy, @"数据目录 %APPDATA%\LogiBatteryTray", 8.5f, FontStyle.Regular, _secondary);
+        var meta = AddLabel(card, 30, title.Bottom + S(6),
+            $"版本 {typeof(MainForm).Assembly.GetName().Version?.ToString(3)}　·　构建 {buildText}",
+            9f, FontStyle.Regular, _secondary);
 
-        float buttonsY = y + S(192);
+        // 说明
+        var desc = AddLabel(card, 30, meta.Bottom + S(14),
+            "在任务栏显示罗技鼠标电量，直接读取 HID++ 2.0，不需要 G HUB。",
+            9f, FontStyle.Regular, _fore);
+
+        var data = AddLabel(card, 30, desc.Bottom + S(8),
+            @"数据目录  %APPDATA%\LogiBatteryTray",
+            8.5f, FontStyle.Regular, _secondary);
+
+        _ = data;
+
+        // 按钮行
+        float buttonsY = y + S(224);
+
         var log = MakeButton(28, buttonsY, "打开日志", S(116));
         log.Parent = page.Content;
         log.Click += (_, _) => _app.OpenLogFolderPublic();
 
-        var quit = MakeButton(156, buttonsY, "退出程序", S(116));
+        var repo = MakeButton(156, buttonsY, "项目主页", S(116));
+        repo.Parent = page.Content;
+        repo.Click += (_, _) =>
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "https://github.com/Kamio-m/logi-batter-display",
+                    UseShellExecute = true,
+                });
+            }
+            catch { }
+        };
+
+        var quit = MakeButton(284, buttonsY, "退出程序", S(116));
         quit.Parent = page.Content;
         quit.Click += (_, _) => _app.ExitAppPublic();
-        quit.Click += (_, _) => Close();
 
         return page;
     }
-
     private CardPanel NewCard(int width, int height) => new()
     {
         Size = new Size(width, height),
