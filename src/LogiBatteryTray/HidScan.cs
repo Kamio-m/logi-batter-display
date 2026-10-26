@@ -239,6 +239,44 @@ internal static class HidScan
         form.Dispose();
         return 0;
     }
+    /// <summary>逐个读取设备的特征报告（只读，不发写指令），看里面有没有电量类字段。</summary>
+    public static int RunRead(string[] args)
+    {
+        string filter = args.Length > 1 ? args[1] : "";
+
+        foreach (var device in HidDevice.Enumerate().Where(d => d.Path.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+        {
+            Console.WriteLine();
+            Console.WriteLine($"### {device.Product} u{device.UsagePage:X4}:{device.Usage:X4} in={device.InputReportLength} feat={device.FeatureReportLength}");
+
+            if (device.FeatureReportLength <= 0)
+            {
+                Console.WriteLine("    无特征报告，跳过");
+                continue;
+            }
+
+            for (byte id = 0; id <= 12; id++)
+            {
+                var buffer = new byte[device.FeatureReportLength];
+                buffer[0] = id;
+                try
+                {
+                    if (!Native.HidD_GetFeature(HandleOf(device), buffer, buffer.Length)) continue;
+                }
+                catch { continue; }
+
+                Console.WriteLine($"    特征 id={id}: {BitConverter.ToString(buffer)}");
+            }
+        }
+
+        return 0;
+    }
+
+    private static IntPtr HandleOf(HidDevice device)
+    {
+        // HidDevice 句柄不公开，这里重新打开一个只读句柄
+        return Open(device.Path);
+    }
     public static int Run(string[] args)
     {
         string filter = args.Length > 1 ? args[1] : "";

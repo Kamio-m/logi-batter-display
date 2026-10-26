@@ -128,6 +128,7 @@ internal static class Cli
             case "--scanhid": return HidScan.Run(args);
         case "--sniffhid": return HidScan.RunSniff(args);
         case "--hidwrite": return HidScan.RunWrite(args);
+        case "--hidread": return HidScan.RunRead(args);
         case "--rawsniff": return HidScan.RunRaw(args);
         case "--once": return Once();
             case "--features": return Features();
