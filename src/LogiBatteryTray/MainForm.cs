@@ -1116,7 +1116,7 @@ internal sealed class MainForm : Form, IMessageFilter
             AccentColor = _accent,
         };
 
-        var daysBox = MakeUnitBox(26, 3650, 60);
+        var daysBox = MakeUnitBox(26, 3650, 0);
         var hoursBox = MakeUnitBox(134, 23, 0);
         var minutesBox = MakeUnitBox(242, 59, 0);
         _ = 0;
@@ -1148,7 +1148,9 @@ internal sealed class MainForm : Form, IMessageFilter
         void UpdateTotal()
         {
             double life = (double)daysBox.Value + (double)hoursBox.Value / 24.0 + (double)minutesBox.Value / 1440.0;
-            total.Text = "合计续航：" + ManualBatteryDevice.FormatDuration(Math.Max(1.0 / 1440.0, life));
+            total.Text = life <= 0
+                ? "合计续航：未填写"
+                : "合计续航：" + ManualBatteryDevice.FormatDuration(life);
         }
 
         daysBox.ValueChanged += (_, _) => UpdateTotal();
@@ -1223,6 +1225,13 @@ internal sealed class MainForm : Form, IMessageFilter
         double lifeDays = (double)daysBox.Value
                           + (double)hoursBox.Value / 24.0
                           + (double)minutesBox.Value / 1440.0;
+
+        if (lifeDays <= 0)
+        {
+            MessageBox.Show(this, "请填写续航时长（天 / 小时 / 分钟 至少填一个大于 0 的值）。",
+                "LogiBatteryTray", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
 
         _app.Settings.ManualDevices.Add(new ManualBatteryDevice
         {
