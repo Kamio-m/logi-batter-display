@@ -584,6 +584,179 @@ internal sealed class RoundedDropDown : Control
         return path;
     }
 }
+/// <summary>深色自绘数字输入框（可输入、可滚轮、可点上下箭头）。</summary>
+internal sealed class NumberField : Control
+{
+    private int _value;
+    private int _min;
+    private int _max = 100;
+    private string _buffer = "";
+    private bool _hoverUp;
+    private bool _hoverDown;
+
+    public NumberField()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
+        Font = new Font("Segoe UI", 10f);
+        Size = new Size(68, 30);
+        Cursor = Cursors.IBeam;
+        TabStop = true;
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color Surface { get; set; } = Color.FromArgb(26, 26, 29);
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color TextColor { get; set; } = Color.White;
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color AccentColor { get; set; } = Color.FromArgb(58, 130, 255);
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int Minimum { get => _min; set { _min = value; Value = _value; } }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int Maximum { get => _max; set { _max = value; Value = _value; } }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int Value
+    {
+        get => _value;
+        set
+        {
+            int clamped = Math.Clamp(value, _min, Math.Max(_min, _max));
+            if (clamped == _value) { _buffer = ""; Invalidate(); return; }
+            _value = clamped;
+            _buffer = "";
+            Invalidate();
+            ValueChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public event EventHandler ValueChanged;
+
+    private Rectangle UpRect => new(Width - 22, 2, 20, Height / 2 - 2);
+    private Rectangle DownRect => new(Width - 22, Height / 2, 20, Height / 2 - 2);
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        var rect = new RectangleF(0.5f, 0.5f, Width - 1f, Height - 1f);
+        using (var path = Rounded(rect, 8))
+        using (var brush = new SolidBrush(Surface))
+            g.FillPath(brush, path);
+
+        string text = _buffer.Length > 0 ? _buffer : _value.ToString();
+        TextRenderer.DrawText(g, text, Font, new Rectangle(8, 0, Width - 30, Height), TextColor,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+
+        using var pen = new Pen(Color.FromArgb(150, TextColor), 1.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        float cx = Width - 12;
+
+        g.DrawLines(pen, new[] { new PointF(cx - 4, Height / 2 - 6), new PointF(cx, Height / 2 - 10), new PointF(cx + 4, Height / 2 - 6) });
+        g.DrawLines(pen, new[] { new PointF(cx - 4, Height / 2 + 6), new PointF(cx, Height / 2 + 10), new PointF(cx + 4, Height / 2 + 6) });
+
+        if (Focused)
+        {
+            using var focus = new Pen(AccentColor, 1.4f);
+            using var path = Rounded(rect, 8);
+            g.DrawPath(focus, path);
+        }
+    }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        Focus();
+
+        if (UpRect.Contains(e.Location)) { Value += 1; return; }
+        if (DownRect.Contains(e.Location)) { Value -= 1; return; }
+    }
+
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        Value += e.Delta > 0 ? 1 : -1;
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+
+        if (e.KeyCode == Keys.Up) { Value += 1; e.Handled = true; return; }
+        if (e.KeyCode == Keys.Down) { Value -= 1; e.Handled = true; return; }
+
+        if (e.KeyCode == Keys.Back)
+        {
+            if (_buffer.Length > 0) _buffer = _buffer[..^1];
+            Invalidate();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.KeyCode == Keys.Enter) { CommitBuffer(); e.Handled = true; return; }
+    }
+
+    protected override void OnKeyPress(KeyPressEventArgs e)
+    {
+        base.OnKeyPress(e);
+
+        if (!char.IsDigit(e.KeyChar)) return;
+
+        if (_buffer.Length >= 6) { e.Handled = true; return; }
+
+        _buffer += e.KeyChar;
+        Invalidate();
+        e.Handled = true;
+    }
+
+    protected override void OnLostFocus(EventArgs e)
+    {
+        base.OnLostFocus(e);
+        CommitBuffer();
+        Invalidate();
+    }
+
+    private void CommitBuffer()
+    {
+        if (_buffer.Length > 0 && int.TryParse(_buffer, out int parsed))
+            Value = parsed;
+
+        _buffer = "";
+        Invalidate();
+    }
+
+    protected override void OnMouseEnter(EventArgs e) { _hoverUp = true; Invalidate(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { _hoverUp = false; Invalidate(); base.OnMouseLeave(e); }
+
+    private static GraphicsPath Rounded(RectangleF rect, float radius)
+    {
+        var path = new GraphicsPath();
+        float diameter = Math.Min(radius * 2f, Math.Min(rect.Width, rect.Height));
+        if (diameter <= 1f) { path.AddRectangle(rect); return path; }
+
+        var arc = new RectangleF(rect.X, rect.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = rect.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = rect.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = rect.X;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+}
 /// <summary>细长的自绘滚动条。</summary>
 internal sealed class SlimScrollBar : Control
 {
