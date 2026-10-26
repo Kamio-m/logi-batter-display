@@ -1543,24 +1543,28 @@ internal sealed class MainForm : Form, IMessageFilter
         if (_deviceCombo == null) return;
 
         var devices = _app.Service.Devices;
+        var manuals = _app.Settings.ManualDevices ?? new List<ManualBatteryDevice>();
         string selected = _app.Settings.SelectedDeviceKey ?? "";
 
         _deviceOptions.Clear();
 
-        if (devices.Count == 0)
-        {
-            _deviceOptions.Add((string.Empty, "未检测到设备"));
-        }
-        else if (devices.Count == 1)
-        {
-            _deviceOptions.Add((DeviceKeyOf(devices[0]), devices[0].Name));
-        }
-        else
-        {
+        if (devices.Count > 1)
             _deviceOptions.Add(("auto", "自动（电量最低）"));
-            foreach (var device in devices)
-                _deviceOptions.Add((DeviceKeyOf(device), device.Name));
+
+        foreach (var device in devices)
+        {
+            string percent = device.Battery?.Percent is int value ? $"（{value}%）" : "";
+            _deviceOptions.Add((DeviceKeyOf(device), device.Name + percent));
         }
+
+        foreach (var manual in manuals)
+        {
+            int estimated = manual.RemainingPercent(DateTime.UtcNow);
+            _deviceOptions.Add(("manual:" + manual.Name, $"{manual.Name}（估算 {estimated}%）"));
+        }
+
+        if (_deviceOptions.Count == 0)
+            _deviceOptions.Add((string.Empty, "未检测到设备"));
 
         int index = _deviceOptions.FindIndex(option => option.Key == selected);
         if (index < 0) index = 0;
