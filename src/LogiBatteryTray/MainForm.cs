@@ -750,38 +750,23 @@ internal sealed class MainForm : Form, IMessageFilter
         UpdateView();
     }
 
-    /// <summary>估算设备卡片：和数据卡一样的“图标 + 文字”排布。</summary>
+    /// <summary>估算设备卡片：结构和设备卡完全一致。</summary>
     private sealed class ManualCard : CardPanel
     {
         private readonly Label _name;
-        private readonly Label _detail;
+        private readonly Label _status;
         private readonly Label _percent;
+        private readonly Label _detail;
+        private readonly Label _badge;
         private readonly PictureBox _icon;
         private readonly ManualBatteryDevice _device;
         private readonly Color _accent;
+        private readonly Color _borderRestore;
         private readonly bool _light;
-
         private bool _selected;
 
         public event EventHandler RefreshRequested;
         public event EventHandler DeleteRequested;
-
-        [System.ComponentModel.Browsable(false)]
-        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
-        public bool Selected
-        {
-            get => _selected;
-            set
-            {
-                if (_selected == value) return;
-                _selected = value;
-                Outline = value ? _accent : _borderRestore;
-                OutlineWidth = value ? 2f : 1f;
-                Invalidate();
-            }
-        }
-
-        private readonly Color _borderRestore;
 
         public ManualCard(Color surface, Color outline, Color background, Color fore, Color secondary,
             Color accent, bool light, ManualBatteryDevice device)
@@ -791,8 +776,8 @@ internal sealed class MainForm : Form, IMessageFilter
             Background = background;
             _device = device;
             _accent = accent;
-            _light = light;
             _borderRestore = outline;
+            _light = light;
 
             _icon = new PictureBox
             {
@@ -804,17 +789,17 @@ internal sealed class MainForm : Form, IMessageFilter
 
             _name = new Label
             {
-                AutoSize = true,
-                Location = new Point(126, 18),
+                AutoSize = false,
+                AutoEllipsis = true,
                 Font = new Font("Segoe UI", 12.5f, FontStyle.Bold),
                 ForeColor = fore,
                 BackColor = Color.Transparent,
             };
 
-            _detail = new Label
+            _status = new Label
             {
-                AutoSize = true,
-                Location = new Point(126, 42),
+                AutoSize = false,
+                AutoEllipsis = true,
                 Font = new Font("Segoe UI", 9f),
                 ForeColor = secondary,
                 BackColor = Color.Transparent,
@@ -823,9 +808,17 @@ internal sealed class MainForm : Form, IMessageFilter
             _percent = new Label
             {
                 AutoSize = true,
-                Location = new Point(126, 66),
                 Font = new Font("Segoe UI", 22f, FontStyle.Bold),
                 ForeColor = accent,
+                BackColor = Color.Transparent,
+            };
+
+            _detail = new Label
+            {
+                AutoSize = false,
+                AutoEllipsis = true,
+                Font = new Font("Segoe UI", 8f),
+                ForeColor = secondary,
                 BackColor = Color.Transparent,
             };
 
@@ -853,48 +846,74 @@ internal sealed class MainForm : Form, IMessageFilter
             remove.FlatAppearance.BorderColor = outline;
             remove.Click += (_, _) => DeleteRequested?.Invoke(this, EventArgs.Empty);
 
+            _badge = new Label
+            {
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = _accent,
+                Padding = new Padding(6, 2, 6, 2),
+                Visible = false,
+                Text = "托盘显示",
+            };
+
             Controls.Add(_icon);
             Controls.Add(_name);
-            Controls.Add(_detail);
+            Controls.Add(_status);
             Controls.Add(_percent);
+            Controls.Add(_detail);
             Controls.Add(refresh);
             Controls.Add(remove);
+            Controls.Add(_badge);
 
             void Layout()
             {
                 float dpi = DeviceDpi / 96f;
-
-                // 右侧按钮固定占位，文字区绝不越界
-                int buttonY = (int)((Height - 32) / 2);
-                refresh.Location = new Point(Width - (int)(84 + 16), buttonY);
-                remove.Location = new Point(Width - (int)(84 + 16 + 64 + 8), buttonY);
-
                 int textX = (int)(126 * dpi);
                 int reserve = (int)(84 + 16 + 64 + 8 + 16);
                 int maxWidth = Math.Max((int)(120 * dpi), Width - textX - reserve);
 
-                // 固定行高 + 省略号，永远不会换行挤压或压到按钮
-                _name.AutoSize = false;
-                _name.AutoEllipsis = true;
-                _name.Size = new Size(maxWidth, (int)(26 * dpi));
-
-                _detail.AutoSize = false;
-                _detail.AutoEllipsis = true;
-                _detail.Size = new Size(maxWidth, (int)(20 * dpi));
+                _name.Size = new Size(maxWidth, (int)(24 * dpi));
+                _status.Size = new Size(maxWidth, (int)(18 * dpi));
+                _detail.Size = new Size(maxWidth, (int)(16 * dpi));
 
                 float y = 18 * dpi;
                 _name.Location = new Point(textX, (int)y);
                 y = _name.Bottom + 2 * dpi;
 
-                _detail.Location = new Point(textX, (int)y);
-                y = _detail.Bottom + 4 * dpi;
+                _status.Location = new Point(textX, (int)y);
+                y = _status.Bottom + 2 * dpi;
 
                 _percent.Location = new Point(textX, (int)y);
+                y = _percent.Bottom + 2 * dpi;
+
+                _detail.Location = new Point(textX, (int)y);
+
+                int buttonY = (int)((Height - 32) / 2);
+                refresh.Location = new Point(Width - (int)(84 + 16), buttonY);
+                remove.Location = new Point(Width - (int)(84 + 16 + 64 + 8), buttonY);
+
+                _badge.Location = new Point(Width - _badge.Width - (int)(16 * dpi), (int)(16 * dpi));
             }
 
             Resize += (_, _) => Layout();
             Layout();
             RefreshNow();
+        }
+
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool Selected
+        {
+            get => _selected;
+            set
+            {
+                if (_selected == value) return;
+                _selected = value;
+                Outline = value ? _accent : _borderRestore;
+                _badge.Visible = value;
+                Invalidate();
+            }
         }
 
         public void RefreshNow()
@@ -903,11 +922,10 @@ internal sealed class MainForm : Form, IMessageFilter
             int percent = _device.RemainingPercent(now);
 
             _name.Text = _device.Name;
-            _detail.Text = $"{_device.Describe(now)} · 估算";
+            _status.Text = "估算中";
             _percent.Text = $"{percent}%";
             _percent.ForeColor = percent < 20 ? Color.FromArgb(240, 190, 20) : _accent;
-
-            PerformLayout();
+            _detail.Text = _device.Describe(now);
 
             bool percentShape = IconFactory.Shape == IconShape.Percent;
             _icon.Visible = !percentShape;
@@ -920,7 +938,6 @@ internal sealed class MainForm : Form, IMessageFilter
             else
             {
                 _percent.Font = new Font("Segoe UI", 22f, FontStyle.Bold);
-                _percent.Location = new Point((int)(126 * (DeviceDpi / 96f)), (int)(_detail.Bottom + 4 * (DeviceDpi / 96f)));
             }
 
             var previous = _icon.Image;
