@@ -879,8 +879,8 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
     private void UpdateMenuState()
     {
-        _autostartItem.Checked = AppSettings.IsAutostartEnabled();
-        _notifyItem.Checked = _settings.LowBatteryNotify;
+        _autostartItem.Text = "开机自动启动" + (AppSettings.IsAutostartEnabled() ? "　　开" : "　　关");
+        _notifyItem.Text = "低电量提醒" + (_settings.LowBatteryNotify ? "　　开" : "　　关");
 
         foreach (var pair in _intervalItems)
             pair.Value.Checked = pair.Key == _settings.IntervalSeconds;
