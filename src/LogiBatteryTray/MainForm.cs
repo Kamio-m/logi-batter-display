@@ -1033,12 +1033,22 @@ internal sealed class MainForm : Form, IMessageFilter
             BackColor = Color.Transparent,
         };
 
-        // 检测到的、读不出电量的外设
-        var candidates = PeripheralScanner.Scan();
+        // 检测到的、读不出电量的外设：排除已经添加过的
+        var existingNames = new HashSet<string>(
+            _app.Settings.ManualDevices.Select(d => d.Name),
+            StringComparer.OrdinalIgnoreCase);
+
+        var candidates = PeripheralScanner.Scan()
+            .Where(c => !existingNames.Contains(c.Name))
+            .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
 
         var detectedLabel = new Label
         {
-            Text = candidates.Count > 0 ? "检测到的设备（读不到电量）" : "未检测到其他外设，可手动输入名称",
+            Text = candidates.Count > 0
+                ? "检测到的设备（已添加过的不会再列出）"
+                : "没有可添加的外设，可手动输入名称",
             AutoSize = true,
             Location = P(26, 74),
             ForeColor = _secondary,
@@ -1058,7 +1068,8 @@ internal sealed class MainForm : Form, IMessageFilter
 
         detectedCombo.SetItems(candidates.Count > 0
             ? candidates.Select(c => c.Name).ToArray()
-            : new[] { "（无）" });
+            : new[] { "（无可添加设备）" });
+        detectedCombo.Enabled = candidates.Count > 0;
 
         var nameLabel = new Label
         {
