@@ -1434,7 +1434,12 @@ internal sealed class MainForm : Form, IMessageFilter
                 : "未连接";
 
             _percent.Text = _battery?.Percent is int percent ? $"{percent}%" : "--";
-            _percent.ForeColor = _online ? IconFactory.LevelColor(_battery!) : _secondary;
+
+            // 数字跟随主题色；只有低电量（<20% 且未充电）保留黄色警示
+            bool lowWarning = _battery?.Percent is int lowValue && lowValue < IconFactory.LowBatteryThreshold && _battery.Charging != true;
+            _percent.ForeColor = !_online
+                ? _secondary
+                : lowWarning ? IconFactory.LevelColor(_battery!) : _accentColor;
 
             bool percentShape = IconFactory.Shape == IconShape.Percent;
             _percentMode = percentShape;
