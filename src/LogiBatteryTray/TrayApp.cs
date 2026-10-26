@@ -99,7 +99,12 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         IconFactory.Style = BatteryIconStyle.OutlinePlug;
         IconFactory.Shape = (IconShape)_settings.IconShapeMode;
 
-        _menu = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = true };
+        _menu = new ContextMenuStrip
+        {
+            ShowImageMargin = false,
+            ShowCheckMargin = true,
+            MinimumSize = new Size(250, 0),   // 固定最小宽度，避免换设备后菜单忽宽忽窄
+        };
         _menu.Opened += (_, _) =>
         {
             MenuStyle.ApplyMenuWindow(_menu, _settings.MenuOpacity, _settings.MenuCorner);
