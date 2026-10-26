@@ -242,7 +242,12 @@ internal sealed class ScrollHost : Panel
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.AllPaintingInWmPaint, true);
 
         Content = new Panel { BackColor = background, Location = new Point(0, 0) };
-        Content.SizeChanged += (_, _) => { if (!_layingOut) Invalidate(); };
+        Content.SizeChanged += (_, _) =>
+        {
+            if (_layingOut) return;
+            Invalidate();
+            PerformLayout();
+        };
         Controls.Add(Content);
 
         _bar = new SlimScrollBar();
@@ -290,7 +295,7 @@ internal sealed class ScrollHost : Panel
             _bar.Bounds = new Rectangle(
                 Width - (int)(11 * DeviceDpi / 96f),
                 (int)(6 * DeviceDpi / 96f),
-                (int)(7 * DeviceDpi / 96f),
+                (int)(10 * DeviceDpi / 96f),
                 Height - (int)(12 * DeviceDpi / 96f));
 
             _bar.Maximum = Content.Height;
@@ -407,8 +412,15 @@ internal sealed class SlimScrollBar : Control
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
 
-        int alpha = _hover || _dragging ? 140 : 90;
-        using (var brush = new SolidBrush(Color.FromArgb(alpha, 140, 140, 150)))
+        // 轨道
+        using (var track = new SolidBrush(Color.FromArgb(40, 140, 140, 150)))
+        {
+            using var trackPath = RoundedPath(new RectangleF(0, 0, Width, Height), Width / 2f);
+            g.FillPath(track, trackPath);
+        }
+
+        int alpha = _hover || _dragging ? 220 : 150;
+        using (var brush = new SolidBrush(Color.FromArgb(alpha, 190, 190, 200)))
         {
             var thumb = new RectangleF(0, ThumbTop, Width, ThumbHeight);
             using var path = RoundedPath(thumb, Width / 2f);
