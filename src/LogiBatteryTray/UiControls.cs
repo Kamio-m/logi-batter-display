@@ -261,6 +261,11 @@ internal sealed class ScrollHost : Panel
 
     public Panel Content { get; }
 
+    /// <summary>内容最大宽度（宽屏下居中，避免卡片被拉太长）。</summary>
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int MaxContentWidth { get; set; } = 1000;
+
     public void ScrollBy(int delta) => SetOffset(_offset + delta, fromBar: false);
 
     public int ScrollOffset => _offset;
@@ -286,7 +291,11 @@ internal sealed class ScrollHost : Panel
         try
         {
             int barSpace = (int)(14 * DeviceDpi / 96f);
-            Content.Width = Math.Max(0, Width - barSpace);
+            int available = Math.Max(0, Width - barSpace);
+            int maxWidth = Math.Max((int)(420 * DeviceDpi / 96f), (int)(MaxContentWidth * DeviceDpi / 96f));
+
+            Content.Width = Math.Min(available, maxWidth);
+            Content.Left = Math.Max(0, (available - Content.Width) / 2);
 
             int bottom = 0;
             foreach (Control child in Content.Controls)

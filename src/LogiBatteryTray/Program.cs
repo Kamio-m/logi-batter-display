@@ -552,6 +552,9 @@ internal static class Cli
         using var form = new MainForm(new PreviewHost(settings, service));
         if (page >= 0 && page <= 2) form.SelectPage(page);
 
+        if (args != null && args.Contains("wide"))
+            form.ClientSize = new Size((int)(form.ClientSize.Width * 2.2), form.ClientSize.Height);
+
         if (args != null && args.Contains("narrow"))
             form.ClientSize = new Size((int)(form.ClientSize.Width * 0.7), form.ClientSize.Height);
 
