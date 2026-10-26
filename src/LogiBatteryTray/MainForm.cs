@@ -911,16 +911,17 @@ internal sealed class MainForm : Form, IMessageFilter
                 _status.Size = new Size(maxWidth, (int)(18 * dpi));
                 _detail.Size = new Size(maxWidth, (int)(16 * dpi));
 
-                _name.Location = new Point(textX, (int)(18 * dpi));
-                _status.Location = new Point(textX, _name.Bottom + (int)(2 * dpi));
+                int columnX = _percentShape ? (int)(22 * dpi) : textX;
+                _name.Location = new Point(columnX, (int)(18 * dpi));
+                _status.Location = new Point(columnX, _name.Bottom + (int)(2 * dpi));
 
                 if (_percentShape)
                 {
-                    // 百分比样式：大数字占图标位置，说明行固定在第 4 行
+                    // 百分比样式：隐藏图标，数字与文字同一列
                     _icon.Visible = false;
                     _percent.Font = new Font("Segoe UI", _selected ? 30f : 26f, FontStyle.Bold);
-                    _percent.Location = new Point((int)((_selected ? 22 : 16) * dpi), (int)(24 * dpi));
-                    _detail.Location = new Point(textX, (int)(96 * dpi));
+                    _percent.Location = new Point((int)(22 * dpi), _status.Bottom + (int)(2 * dpi));
+                    _detail.Location = new Point((int)(22 * dpi), _percent.Bottom + (int)(2 * dpi));
                 }
                 else
                 {
@@ -1404,15 +1405,12 @@ internal sealed class MainForm : Form, IMessageFilter
             bool percentShape = IconFactory.Shape == IconShape.Percent;
             _percentMode = percentShape;
             ApplyIconMetrics();
-            _percent.Visible = !percentShape;
-            _ring.Visible = !percentShape;
-            _bigPercent.Visible = percentShape;
 
-            if (percentShape)
-            {
-                _bigPercent.Text = _battery?.Percent is int bigValue ? bigValue.ToString() : "--";
-                _bigPercent.ForeColor = _online ? IconFactory.LevelColor(_battery!) : _secondary;
-            }
+            // 百分比样式：隐藏图标，数字和文字排在同一列
+            _ring.Visible = !percentShape;
+            _bigPercent.Visible = false;
+            _percent.Visible = true;
+            _percent.Font = new Font("Segoe UI", percentShape ? (_selected ? 30f : 26f) : 22f, FontStyle.Bold);
 
             _updated.Text = device.UpdatedAt is DateTime updatedAt ? $"更新于 {updatedAt:HH:mm:ss}" : "";
 
@@ -1436,7 +1434,7 @@ internal sealed class MainForm : Form, IMessageFilter
         {
             if (_name == null) return;
 
-            int x = (int)(126 * Dpi);
+            int x = (int)((_percentMode ? 22 : 126) * Dpi);
             float y = 18 * Dpi;
 
             _name.Location = new Point(x, (int)y);
@@ -1445,15 +1443,8 @@ internal sealed class MainForm : Form, IMessageFilter
             _status.Location = new Point(x, (int)y);
             y = _status.Bottom + 2 * Dpi;
 
-            if (!_percentMode)
-            {
-                _percent.Location = new Point(x, (int)y);
-                y = _percent.Bottom + 2 * Dpi;
-            }
-            else
-            {
-                y += 2 * Dpi;
-            }
+            _percent.Location = new Point(x, (int)y);
+            y = _percent.Bottom + 2 * Dpi;
 
             _updated.Location = new Point(x, (int)y);
             Invalidate(true);
