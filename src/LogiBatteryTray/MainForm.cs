@@ -994,11 +994,20 @@ internal sealed class MainForm : Form, IMessageFilter
             FormBorderStyle = FormBorderStyle.None,
             StartPosition = FormStartPosition.CenterParent,
             ClientSize = new Size((int)S(380), (int)S(236)),
-            BackColor = _background,
+            BackColor = _cardColor,
             ForeColor = _fore,
             Font = new Font("Segoe UI", 9f),
             AutoScaleMode = AutoScaleMode.None,
             ShowInTaskbar = false,
+        };
+
+        // 描边：让弹窗从主窗口背景里跳出来
+        dialog.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using var pen = new Pen(_accent, S(1.4f));
+            using var path = RoundRectPath(new RectangleF(1, 1, dialog.Width - 2, dialog.Height - 2), S(15));
+            e.Graphics.DrawPath(pen, path);
         };
 
         // 圆角窗体
@@ -1039,7 +1048,7 @@ internal sealed class MainForm : Form, IMessageFilter
             Location = P(26, 106),
             Width = (int)S(328),
             BorderStyle = BorderStyle.FixedSingle,
-            BackColor = ButtonBack,
+            BackColor = _background,
             ForeColor = _fore,
             Font = new Font("Segoe UI", 10f),
         };
@@ -1061,7 +1070,7 @@ internal sealed class MainForm : Form, IMessageFilter
             Location = P(26, 166),
             Width = (int)S(120),
             BorderStyle = BorderStyle.FixedSingle,
-            BackColor = ButtonBack,
+            BackColor = _background,
             ForeColor = _fore,
             Font = new Font("Segoe UI", 10f),
         };
