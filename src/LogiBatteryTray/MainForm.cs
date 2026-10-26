@@ -37,6 +37,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private ScrollHost _devicePage;
     private string _cardsSignature = "";
     private int _listTopY;
+    private IconShape _lastShape = IconFactory.Shape;
 
     private ToggleSwitch _autostartToggle;
     private ToggleSwitch _notifyToggle;
@@ -1148,6 +1149,14 @@ internal sealed class MainForm : Form, IMessageFilter
         _devicePage.Content.Visible = receiverConnected;
         _emptyState.Visible = !receiverConnected;
 
+        // 样式变了就整组重建，避免两类卡片布局不同步
+        if (IconFactory.Shape != _lastShape)
+        {
+            _lastShape = IconFactory.Shape;
+            _cardsSignature = "";
+            _manualSignature = "";
+        }
+
         var devices = _app.Service.Devices;
 
         // 接收器插着但一台设备都没有（鼠标关着）：显示一张“停用”占位卡
@@ -1183,14 +1192,20 @@ internal sealed class MainForm : Form, IMessageFilter
             RebuildDeviceCards(shown);
         }
 
+        bool staleCard = false;
         foreach (var card in _deviceCards)
         {
             var device = shown.FirstOrDefault(d => DeviceKeyOf(d) == card.Key);
             if (device != null) card.SetDevice(device);
+            else staleCard = true;
+
             card.Selected = device != null
                 ? MatchesKey(device, SelectedKey())
                 : card.Key == SelectedKey();
         }
+
+        // 卡片对应的设备已经不存在 → 下一轮重建，避免显示过期内容
+        if (staleCard) _cardsSignature = "";
 
         RebuildManualCards();
 
