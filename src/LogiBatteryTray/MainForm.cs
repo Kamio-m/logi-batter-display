@@ -1652,23 +1652,15 @@ internal sealed class MainForm : Form, IMessageFilter
         return true;
     }
 
-    protected override void OnFormClosing(FormClosingEventArgs e)
+    protected override void OnResizeEnd(EventArgs e)
     {
-        base.OnFormClosing(e);
-
-        if (AllowClose || SuppressExitOnClose) return;
-        if (e.CloseReason != CloseReason.UserClosing) return;
-
-        // 点 × 只隐藏到托盘，程序继续运行
-        e.Cancel = true;
-        Hide();
+        base.OnResizeEnd(e);
+        SaveWindowSize();
     }
 
-    protected override void OnFormClosed(FormClosedEventArgs e)
+    /// <summary>记住当前窗口尺寸。</summary>
+    private void SaveWindowSize()
     {
-        Application.RemoveMessageFilter(this);
-
-        // 记住窗口尺寸，下次打开保持一样
         try
         {
             var settings = _app.Settings;
@@ -1680,9 +1672,29 @@ internal sealed class MainForm : Form, IMessageFilter
                 settings.WindowWidth = bounds.Width;
                 settings.WindowHeight = bounds.Height;
             }
+
             settings.Save();
         }
         catch { }
+    }
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        base.OnFormClosing(e);
+
+        if (AllowClose || SuppressExitOnClose) return;
+        if (e.CloseReason != CloseReason.UserClosing) return;
+
+        // 点 × 只隐藏到托盘，程序继续运行
+        SaveWindowSize();
+        e.Cancel = true;
+        Hide();
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        Application.RemoveMessageFilter(this);
+
+        SaveWindowSize();
 
 
         base.OnFormClosed(e);
