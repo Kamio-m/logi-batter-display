@@ -78,7 +78,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     private MainForm _mainForm;
     private BatteryWidget _widget;
     private bool _refreshing;
-    private DateTime _lastLowWarning = DateTime.MinValue;
+    private readonly HashSet<string> _lowNotified = new(StringComparer.OrdinalIgnoreCase);
     private DateTime _lastActivityRefresh = DateTime.MinValue;
     private string _lastState = "";
 
@@ -745,6 +745,61 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             font.Dispose();
         }
     }
+    /// <summary>检查所有设备，任一低于 20% 立即弹系统通知（每台只提醒一次）。</summary>
+    private void CheckLowBatteryForAllDevices()
+    {
+        if (!_settings.LowBatteryNotify) return;
+
+        var low = new List<string>();
+        var alive = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var device in _service.Devices)
+        {
+            if (device.Battery?.Percent is not int percent) continue;
+            if (device.Battery.Charging || device.Battery.Full) continue;
+
+            string key = DeviceKey(device);
+            alive.Add(key);
+
+            if (percent < IconFactory.LowBatteryThreshold)
+            {
+                if (_lowNotified.Add(key)) low.Add($"{device.Name} {percent}%");
+            }
+            else if (percent > IconFactory.LowBatteryThreshold + 5)
+            {
+                // 回到安全区间后重新武装，下次再低还会提醒
+                _lowNotified.Remove(key);
+            }
+        }
+
+        foreach (var manual in _settings.ManualDevices ?? new List<ManualBatteryDevice>())
+        {
+            int percent = manual.RemainingPercent(DateTime.UtcNow);
+            string key = "manual:" + manual.Name;
+            alive.Add(key);
+
+            if (percent < IconFactory.LowBatteryThreshold)
+            {
+                if (_lowNotified.Add(key)) low.Add($"{manual.Name} {percent}%");
+            }
+            else if (percent > IconFactory.LowBatteryThreshold + 5)
+            {
+                _lowNotified.Remove(key);
+            }
+        }
+
+        // 已不存在的设备清掉记录
+        _lowNotified.RemoveWhere(k => !alive.Contains(k));
+
+        if (low.Count == 0) return;
+
+        _tray.BalloonTipTitle = "电量偏低提醒";
+        _tray.BalloonTipText = string.Join("\n", low.Select(x => $"· {x} 已低于 {IconFactory.LowBatteryThreshold}%")) + "\n请及时充电或更换电池。";
+        _tray.BalloonTipIcon = ToolTipIcon.Warning;
+        _tray.ShowBalloonTip(10000);
+
+        Log.Write("低电量提醒: " + string.Join(" | ", low));
+    }
     private void Apply(bool ok)
     {
         // 明确选了估算设备 → 直接显示它（不看罗技设备在不在线）
@@ -825,16 +880,7 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             Log.Write("状态: " + _header.Text + (_service.Problem == null ? "" : " / " + _service.Problem));
         }
 
-        if (online && device.Battery.Percent is int value && value < IconFactory.LowBatteryThreshold
-            && !device.Battery.Charging && !device.Battery.Full
-            && _settings.LowBatteryNotify && DateTime.Now - _lastLowWarning > TimeSpan.FromHours(3))
-        {
-            _lastLowWarning = DateTime.Now;
-            _tray.BalloonTipTitle = "罗技鼠标电量偏低";
-            _tray.BalloonTipText = $"{device.Name} 剩余 {value}%，已低于 20%，建议尽快充电。";
-            _tray.BalloonTipIcon = ToolTipIcon.Warning;
-            _tray.ShowBalloonTip(8000);
-        }
+        CheckLowBatteryForAllDevices();
 
         _mainForm?.UpdateView();
     }
