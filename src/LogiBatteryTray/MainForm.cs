@@ -1486,7 +1486,7 @@ internal sealed class MainForm : Form, IMessageFilter
             int percent = _device.RemainingPercent(now);
 
             _name.Text = _device.Name;
-            _status.Text = "估算中";
+            _status.Text = percent <= 0 ? "停用" : "估算中";
             _percent.Text = $"{percent}%";
             _percent.ForeColor = percent < 20 ? Color.FromArgb(240, 190, 20) : _accent;
             _detail.Text = _device.Describe(now);
@@ -2102,8 +2102,12 @@ internal sealed class MainForm : Form, IMessageFilter
             _name.Text = device.Name;
             _name.MaximumSize = new Size(Math.Max((int)(80 * Dpi), Width - (int)(126 * Dpi) - (int)(16 * Dpi)), 0);
 
+            bool depleted = _online && _battery?.Percent == 0 && _battery.Charging != true;
+
             string offlineLabel = device.PoweredOff ? "停用" : "休眠";
-            _status.Text = _online
+            _status.Text = depleted
+                ? "停用"
+                : _online
                 ? _battery!.StatusText
                 : _battery?.Percent != null ? $"{offlineLabel} · 上次 {_battery.Percent}%"
                 : device.PoweredOff ? "停用"
