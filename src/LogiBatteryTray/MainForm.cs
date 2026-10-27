@@ -23,6 +23,12 @@ internal sealed class MainForm : Form, IMessageFilter
     private readonly bool _light;
 
     private readonly Panel _sidebar;
+    private readonly Panel _pageHost;
+    private System.Windows.Forms.Timer _pageAnim;
+    private Control _animPage;
+    private int _animStep;
+    private int _animDistance;
+    private int _currentPage = -1;
     private readonly ScrollHost[] _pages;
     private readonly NavButton[] _navs;
 
@@ -167,9 +173,17 @@ internal sealed class MainForm : Form, IMessageFilter
             Location = P(22, ClientSize.Height - (int)S(38)),
         });
 
-        // ---------- 右侧内容页 ----------
+        // ---------- 右侧内容页（放在容器里，便于滑动时裁剪） ----------
+        _pageHost = new Panel
+        {
+            Location = new Point(SidebarWidth, 0),
+            Size = new Size(ClientSize.Width - SidebarWidth, ClientSize.Height),
+            BackColor = _background,
+        };
+        Controls.Add(_pageHost);
+
         _pages = new[] { BuildDevicePage(), BuildSettingsPage(), BuildAboutPage() };
-        foreach (var page in _pages) Controls.Add(page);
+        foreach (var page in _pages) _pageHost.Controls.Add(page);
 
         ShowPage(0);
         LoadFromSettings();
@@ -215,7 +229,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
     private ScrollHost NewPage() => new(_background)
     {
-        Location = P(212, 0),
+        Location = new Point(0, 0),
         Size = new Size(ClientSize.Width - SidebarWidth, ClientSize.Height),
         Visible = false,
     };
@@ -1621,11 +1635,59 @@ internal sealed class MainForm : Form, IMessageFilter
     }
     private void ShowPage(int index)
     {
+        if (index < 0 || index >= _pages.Length) return;
+
+        int direction = _currentPage < 0 || index > _currentPage ? 1 : -1;
+        _currentPage = index;
+
         for (int i = 0; i < _pages.Length; i++)
-            _pages[i].Visible = i == index;
+        {
+            bool active = i == index;
+            _pages[i].Visible = active;
+
+            if (active)
+            {
+                _pages[i].Location = new Point(direction * (int)S(36), 0);
+                _pages[i].BringToFront();
+            }
+        }
 
         for (int i = 0; i < _navs.Length; i++)
             _navs[i].Selected = i == index;
+
+        AnimatePage(_pages[index], direction);
+    }
+
+    /// <summary>新页面从侧边滑入（缓出），约 180ms。</summary>
+    private void AnimatePage(Control page, int direction)
+    {
+        _pageAnim?.Stop();
+        _pageAnim?.Dispose();
+
+        _animPage = page;
+        _animStep = 0;
+        _animDistance = direction * (int)S(36);
+
+        _pageAnim = new System.Windows.Forms.Timer { Interval = 16 };
+        _pageAnim.Tick += (_, _) =>
+        {
+            _animStep++;
+
+            double progress = Math.Min(1.0, _animStep / 11.0);
+            double eased = 1.0 - Math.Pow(1.0 - progress, 3);   // ease-out cubic
+            int offset = (int)(_animDistance * (1.0 - eased));
+
+            if (_animPage != null && !_animPage.IsDisposed)
+                _animPage.Left = offset;
+
+            if (progress >= 1.0)
+            {
+                if (_animPage != null && !_animPage.IsDisposed) _animPage.Left = 0;
+                _pageAnim?.Stop();
+            }
+        };
+
+        _pageAnim.Start();
     }
 
     private void CycleAccent()
@@ -1869,11 +1931,14 @@ internal sealed class MainForm : Form, IMessageFilter
 
         _sidebar.Height = ClientSize.Height;
 
-        foreach (var page in _pages)
+        if (_pageHost != null)
         {
-            page.Location = new Point(SidebarWidth, 0);
-            page.Size = new Size(ClientSize.Width - SidebarWidth, ClientSize.Height);
+            _pageHost.Location = new Point(SidebarWidth, 0);
+            _pageHost.Size = new Size(ClientSize.Width - SidebarWidth, ClientSize.Height);
         }
+
+        foreach (var page in _pages)
+            page.Size = new Size(ClientSize.Width - SidebarWidth, ClientSize.Height);
     }
 
     /// <summary>把滚轮接管到当前可见页面。</summary>
