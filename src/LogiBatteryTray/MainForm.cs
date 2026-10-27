@@ -1108,6 +1108,7 @@ internal sealed class MainForm : Form, IMessageFilter
             Location = P(26, 152),
             Size = new Size((int)S(328), (int)S(34)),
             Surface = _background,
+            TextColor = _fore,
             Outline = _border,
             AccentColor = _accent,
         };
