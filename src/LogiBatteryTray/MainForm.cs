@@ -180,10 +180,15 @@ internal sealed class MainForm : Form, IMessageFilter
             Size = new Size(ClientSize.Width - SidebarWidth, ClientSize.Height),
             BackColor = _background,
         };
+        EnableDoubleBuffer(_pageHost);
         Controls.Add(_pageHost);
 
         _pages = new[] { BuildDevicePage(), BuildSettingsPage(), BuildAboutPage() };
-        foreach (var page in _pages) _pageHost.Controls.Add(page);
+        foreach (var page in _pages)
+        {
+            EnableDoubleBuffer(page);
+            _pageHost.Controls.Add(page);
+        }
 
         ShowPage(0);
         LoadFromSettings();
@@ -1633,6 +1638,17 @@ internal sealed class MainForm : Form, IMessageFilter
         path.CloseFigure();
         return path;
     }
+    /// <summary>给原生控件开启双缓冲，减少滑动时的重绘抖动。</summary>
+    private static void EnableDoubleBuffer(Control control)
+    {
+        try
+        {
+            typeof(Control).GetProperty("DoubleBuffered",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.SetValue(control, true);
+        }
+        catch { }
+    }
     private void ShowPage(int index)
     {
         if (index < 0 || index >= _pages.Length) return;
@@ -1647,7 +1663,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
             if (active)
             {
-                _pages[i].Location = new Point(direction * (int)S(36), 0);
+                _pages[i].Location = new Point(direction * (int)S(26), 0);
                 _pages[i].BringToFront();
             }
         }
@@ -1666,14 +1682,15 @@ internal sealed class MainForm : Form, IMessageFilter
 
         _animPage = page;
         _animStep = 0;
-        _animDistance = direction * (int)S(36);
+        _animDistance = direction * (int)S(26);
 
-        _pageAnim = new System.Windows.Forms.Timer { Interval = 16 };
+        var started = DateTime.UtcNow;
+        const int durationMs = 150;
+
+        _pageAnim = new System.Windows.Forms.Timer { Interval = 10 };
         _pageAnim.Tick += (_, _) =>
         {
-            _animStep++;
-
-            double progress = Math.Min(1.0, _animStep / 11.0);
+            double progress = Math.Min(1.0, (DateTime.UtcNow - started).TotalMilliseconds / durationMs);
             double eased = 1.0 - Math.Pow(1.0 - progress, 3);   // ease-out cubic
             int offset = (int)(_animDistance * (1.0 - eased));
 
