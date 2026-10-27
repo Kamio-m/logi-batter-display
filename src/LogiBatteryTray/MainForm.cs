@@ -834,7 +834,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
         // 3 秒保活：被其他程序覆盖后自动抢回
         _lampKeepAlive?.Stop();
-        _lampKeepAlive = new System.Windows.Forms.Timer { Interval = 3000 };
+        _lampKeepAlive = new System.Windows.Forms.Timer { Interval = 1000 };
         _lampKeepAlive.Tick += (_, _) =>
         {
             byte kr = (byte)Math.Clamp(Math.Round(_lampColor.R * (_lampBrightness / 100.0)), 0, 255);
