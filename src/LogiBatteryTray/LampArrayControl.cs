@@ -11,6 +11,19 @@ namespace LogiBatteryTray;
 /// </summary>
 internal static class LampArrayControl
 {
+    private static readonly List<LampArrayEffectPlaylist> Playlists = new();
+
+    /// <summary>停止本程序播放的所有灯效，把控制权还给系统/厂商软件。</summary>
+    public static void StopAll()
+    {
+        foreach (var playlist in Playlists)
+        {
+            try { playlist.Stop(); } catch { }
+        }
+
+        Playlists.Clear();
+    }
+
     public static List<string> Probe()
     {
         var list = new List<string>();
@@ -66,11 +79,23 @@ internal static class LampArrayControl
                 var lamp = LampArray.FromIdAsync(info.Id).AsTask().GetAwaiter().GetResult();
                 if (lamp == null) continue;
 
-                var playlist = new LampArrayEffectPlaylist();
-                var effect = new LampArraySolidEffect(lamp, Enumerable.Range(0, Math.Max(1, lamp.LampCount)).ToArray());
-                effect.Color = WinColor.FromArgb(255, r, g, b);
+                StopAll();
+
+                var playlist = new LampArrayEffectPlaylist
+                {
+                    RepetitionMode = LampArrayRepetitionMode.Forever,
+                };
+
+                var effect = new LampArraySolidEffect(lamp, Enumerable.Range(0, Math.Max(1, lamp.LampCount)).ToArray())
+                {
+                    Color = WinColor.FromArgb(255, r, g, b),
+                    Duration = TimeSpan.FromMilliseconds(500),
+                    CompletionBehavior = LampArrayEffectCompletionBehavior.KeepState,
+                };
+
                 playlist.Append(effect);
                 playlist.Start();
+                Playlists.Add(playlist);
 
                 message += $"{info.Name}（{lamp.LampCount} 颗灯珠） ";
             }

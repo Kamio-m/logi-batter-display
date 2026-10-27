@@ -680,9 +680,28 @@ internal sealed class MainForm : Form, IMessageFilter
                 controlCard.Controls.Add(button);
             }
 
+            var restore = new RoundedButton
+            {
+                Text = "恢复系统控制",
+                Size = new Size((int)S(120), (int)S(30)),
+                Location = new Point((int)S(456), (int)S(103)),
+                Surface = ButtonBack,
+                HoverSurface = ButtonHover,
+                TextColor = _fore,
+            };
+
+            restore.Click += (_, _) =>
+            {
+                LampArrayControl.StopAll();
+                _lampKeepAlive?.Stop();
+                Log.Write("灯光控制权已交还系统");
+            };
+
+            controlCard.Controls.Add(restore);
+
             var hint = new Label
             {
-                Text = "单区 RGB：整块键盘同一颜色。效果需保持窗口在前台。",
+                Text = "单区 RGB：整块键盘同一颜色。若灯不亮，点一下本窗口再选色。",
                 AutoSize = true,
                 Location = P(20, 152),
                 ForeColor = _secondary,
@@ -795,6 +814,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
         _lightingHost.ResumeLayout();
     }
+    private System.Windows.Forms.Timer _lampKeepAlive;
     private Color _lampColor = Color.FromArgb(58, 130, 255);
     private int _lampBrightness = 80;
     private List<string> _lampDevices = new();
@@ -811,6 +831,18 @@ internal sealed class MainForm : Form, IMessageFilter
 
         bool ok = LampArrayControl.PlaySolid(r, g, b, out string message);
         Log.Write(ok ? $"灯光已应用 #{color.R:X2}{color.G:X2}{color.B:X2} 亮度 {_lampBrightness}%" : "灯光应用失败: " + message);
+
+        // 3 秒保活：被其他程序覆盖后自动抢回
+        _lampKeepAlive?.Stop();
+        _lampKeepAlive = new System.Windows.Forms.Timer { Interval = 3000 };
+        _lampKeepAlive.Tick += (_, _) =>
+        {
+            byte kr = (byte)Math.Clamp(Math.Round(_lampColor.R * (_lampBrightness / 100.0)), 0, 255);
+            byte kg = (byte)Math.Clamp(Math.Round(_lampColor.G * (_lampBrightness / 100.0)), 0, 255);
+            byte kb = (byte)Math.Clamp(Math.Round(_lampColor.B * (_lampBrightness / 100.0)), 0, 255);
+            LampArrayControl.PlaySolid(kr, kg, kb, out _);
+        };
+        _lampKeepAlive.Start();
     }
     private ScrollHost BuildSettingsPage()
     {
