@@ -26,6 +26,8 @@ internal sealed class MainForm : Form, IMessageFilter
     private readonly Panel _pageHost;
     private System.Windows.Forms.Timer _pageAnim;
     private Control _animPage;
+    private FlowLayoutPanel _lightingHost;
+    private string _lightingSignature = "";
     private int _animStep;
     private int _animDistance;
     private int _currentPage = -1;
@@ -150,8 +152,9 @@ internal sealed class MainForm : Form, IMessageFilter
         _navs = new[]
         {
             new NavButton("\uE83F", "设备", _fore, _secondary, _accent) { Location = P(14, navTop) },
-            new NavButton("\uE713", "设置", _fore, _secondary, _accent) { Location = P(14, navTop + 46) },
-            new NavButton("\uE946", "关于", _fore, _secondary, _accent) { Location = P(14, navTop + 92) },
+            new NavButton("\uE706", "灯光", _fore, _secondary, _accent) { Location = P(14, navTop + 46) },
+            new NavButton("\uE713", "设置", _fore, _secondary, _accent) { Location = P(14, navTop + 92) },
+            new NavButton("\uE946", "关于", _fore, _secondary, _accent) { Location = P(14, navTop + 138) },
         };
 
         for (int i = 0; i < _navs.Length; i++)
@@ -183,7 +186,7 @@ internal sealed class MainForm : Form, IMessageFilter
         EnableDoubleBuffer(_pageHost);
         Controls.Add(_pageHost);
 
-        _pages = new[] { BuildDevicePage(), BuildSettingsPage(), BuildAboutPage() };
+        _pages = new[] { BuildDevicePage(), BuildLightingPage(), BuildSettingsPage(), BuildAboutPage() };
         foreach (var page in _pages)
         {
             EnableDoubleBuffer(page);
@@ -547,6 +550,125 @@ internal sealed class MainForm : Form, IMessageFilter
     }
 
     // ---------- 设置页 ----------
+    private ScrollHost BuildLightingPage()
+    {
+        var page = NewPage();
+        float y = PlaceTitle(page.Content, "灯光", "检测各设备的灯光控制能力");
+
+        var host = new FlowLayoutPanel
+        {
+            Location = P(28, y),
+            Size = new Size((int)S(900), (int)S(10)),
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            BackColor = Color.Transparent,
+            Margin = Padding.Empty,
+        };
+        page.Content.Controls.Add(host);
+
+        _lightingHost = host;
+        RefreshLighting();
+        return page;
+    }
+
+    /// <summary>重新探测灯光能力并刷新卡片。</summary>
+    private void RefreshLighting()
+    {
+        if (_lightingHost == null) return;
+
+        var items = LightingProbe.Scan();
+        string signature = string.Join("|", items.Select(i => $"{i.Id}:{i.Level}"));
+
+        if (signature == _lightingSignature && _lightingHost.Controls.Count > 0) return;
+        _lightingSignature = signature;
+
+        _lightingHost.SuspendLayout();
+        foreach (Control control in _lightingHost.Controls.Cast<Control>().ToList())
+        {
+            _lightingHost.Controls.Remove(control);
+            control.Dispose();
+        }
+
+        foreach (var item in items)
+        {
+            var card = new CardPanel
+            {
+                Size = new Size((int)S(720), (int)S(104)),
+                Radius = (int)S(12),
+                Outline = _border,
+                OutlineWidth = 1f,
+                Surface = _cardColor,
+                Background = _background,
+                Margin = new Padding(0, 0, 0, (int)S(10)),
+            };
+
+            Color dotColor = item.Level switch
+            {
+                LightingLevel.FullRgb => Color.FromArgb(52, 199, 110),
+                LightingLevel.BrightnessOnly => Color.FromArgb(240, 190, 20),
+                _ => Color.FromArgb(120, 120, 128),
+            };
+
+            var dot = new Label
+            {
+                AutoSize = false,
+                Size = new Size((int)S(12), (int)S(12)),
+                Location = P(20, 20),
+                BackColor = Color.Transparent,
+            };
+            dot.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using var brush = new SolidBrush(dotColor);
+                g.FillEllipse(brush, 1, 1, ((Label)s!).Width - 3, ((Label)s!).Height - 3);
+            };
+
+            var name = new Label
+            {
+                Text = item.Name,
+                AutoSize = true,
+                Location = P(40, 16),
+                Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                ForeColor = _fore,
+                BackColor = Color.Transparent,
+            };
+
+            var badge = new Label
+            {
+                Text = item.Level switch
+                {
+                    LightingLevel.FullRgb => "支持 RGB（未接入）",
+                    LightingLevel.BrightnessOnly => "仅亮度",
+                    _ => "不支持灯光",
+                },
+                AutoSize = true,
+                Location = P(40, 42),
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = item.Level == LightingLevel.Unsupported ? _secondary : _accent,
+                BackColor = Color.Transparent,
+            };
+
+            var detail = new Label
+            {
+                Text = item.Detail,
+                AutoSize = false,
+                Location = P(40, 64),
+                Size = new Size((int)S(650), (int)S(32)),
+                AutoEllipsis = true,
+                ForeColor = _secondary,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 8.5f),
+            };
+
+            card.Controls.AddRange(new Control[] { dot, name, badge, detail });
+            _lightingHost.Controls.Add(card);
+        }
+
+        _lightingHost.ResumeLayout();
+    }
     private ScrollHost BuildSettingsPage()
     {
         var page = NewPage();
