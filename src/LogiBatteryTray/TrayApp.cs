@@ -809,7 +809,9 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             int manualPercent = explicitManual.RemainingPercent(DateTime.UtcNow);
             var reading = new BatteryReading { Percent = manualPercent };
 
-            _header.Text = PadHeader($"{explicitManual.Name}   约 {manualPercent}%");
+            _header.Text = PadHeader(manualPercent <= 0
+                ? $"{explicitManual.Name}   停用"
+                : $"{explicitManual.Name}   约 {manualPercent}%");
             _settings.LastDeviceName = explicitManual.Name;
 
             UpdateIcon(reading, true, $"{manualPercent}%");
@@ -832,7 +834,9 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
                 int estimated = manual.RemainingPercent(DateTime.UtcNow);
                 var estimate = new BatteryReading { Percent = estimated };
 
-                _header.Text = PadHeader($"{manual.Name}   约 {estimated}%");
+                _header.Text = PadHeader(estimated <= 0
+                    ? $"{manual.Name}   停用"
+                    : $"{manual.Name}   约 {estimated}%");
                 _settings.LastDeviceName = manual.Name;
 
                 UpdateIcon(estimate, true, $"{estimated}%");
