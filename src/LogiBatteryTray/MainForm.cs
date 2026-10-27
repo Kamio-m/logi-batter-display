@@ -555,7 +555,7 @@ internal sealed class MainForm : Form, IMessageFilter
         var page = NewPage();
         float y = PlaceTitle(page.Content, "灯光", "检测各设备的灯光控制能力");
 
-        var host = new FlowLayoutPanel
+        var outer = new FlowLayoutPanel
         {
             Location = P(28, y),
             Size = new Size((int)S(900), (int)S(10)),
@@ -566,9 +566,135 @@ internal sealed class MainForm : Form, IMessageFilter
             BackColor = Color.Transparent,
             Margin = Padding.Empty,
         };
-        page.Content.Controls.Add(host);
+
+        var host = new FlowLayoutPanel
+        {
+            Location = new Point(0, 0),
+            Size = new Size((int)S(900), (int)S(10)),
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            BackColor = Color.Transparent,
+            Margin = Padding.Empty,
+        };
+        host.Margin = Padding.Empty;
+        outer.Controls.Add(host);
+        page.Content.Controls.Add(outer);
 
         _lightingHost = host;
+
+        // ---------- 键盘灯光控制（Windows 动态光效 / LampArray） ----------
+        _lampDevices = LampArrayControl.Probe();
+
+        var controlCard = new CardPanel
+        {
+            Size = new Size((int)S(720), (int)S(210)),
+            Radius = (int)S(12),
+            Outline = _border,
+            OutlineWidth = 1f,
+            Surface = _cardColor,
+            Background = _background,
+            Margin = new Padding(0, (int)S(6), 0, 0),
+        };
+
+        var controlTitle = new Label
+        {
+            Text = _lampDevices.Count > 0 ? "键盘灯光（点一下窗口再选色才生效）" : "键盘灯光（未检测到 LampArray 设备）",
+            AutoSize = true,
+            Location = P(20, 16),
+            Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+            ForeColor = _fore,
+            BackColor = Color.Transparent,
+        };
+        controlCard.Controls.Add(controlTitle);
+
+        if (_lampDevices.Count > 0)
+        {
+            string[] palette =
+            {
+                "#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#00C7BE", "#32ADE6",
+                "#3A82FF", "#AF52DE", "#FF2D55", "#FFFFFF", "#8E8E93", "#000000",
+            };
+
+            for (int i = 0; i < palette.Length; i++)
+            {
+                var color = ColorTranslator.FromHtml(palette[i]);
+                int index = i;
+
+                var swatch = new RoundedButton
+                {
+                    Text = "",
+                    Size = new Size((int)S(34), (int)S(34)),
+                    Location = new Point((int)S(20 + i * 40), (int)S(54)),
+                    Surface = color,
+                    HoverSurface = ControlPaint.Light(color, 0.15f),
+                    TextColor = color,
+                };
+
+                swatch.Click += (_, _) => ApplyLampColor(color);
+                controlCard.Controls.Add(swatch);
+            }
+
+            var brightnessLabel = new Label
+            {
+                Text = "亮度",
+                AutoSize = true,
+                Location = P(20, 108),
+                ForeColor = _secondary,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9f),
+            };
+
+            var brightnessValue = new Label
+            {
+                Text = "80%",
+                AutoSize = true,
+                Location = P(60, 108),
+                ForeColor = _accent,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+            };
+
+            int[] levels = { 20, 40, 60, 80, 100 };
+            for (int i = 0; i < levels.Length; i++)
+            {
+                int level = levels[i];
+                var button = new RoundedButton
+                {
+                    Text = level + "%",
+                    Size = new Size((int)S(64), (int)S(30)),
+                    Location = new Point((int)S(96 + i * 70), (int)S(103)),
+                    Surface = ButtonBack,
+                    HoverSurface = ButtonHover,
+                    TextColor = _fore,
+                };
+
+                button.Click += (_, _) =>
+                {
+                    _lampBrightness = level;
+                    brightnessValue.Text = level + "%";
+                    ApplyLampColor(_lampColor);
+                };
+
+                controlCard.Controls.Add(button);
+            }
+
+            var hint = new Label
+            {
+                Text = "单区 RGB：整块键盘同一颜色。效果需保持窗口在前台。",
+                AutoSize = true,
+                Location = P(20, 152),
+                ForeColor = _secondary,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 8.5f),
+            };
+
+            controlCard.Controls.AddRange(new Control[] { brightnessLabel, brightnessValue, hint });
+        }
+
+        outer.Controls.Add(controlCard);
+
         RefreshLighting();
         return page;
     }
@@ -668,6 +794,23 @@ internal sealed class MainForm : Form, IMessageFilter
         }
 
         _lightingHost.ResumeLayout();
+    }
+    private Color _lampColor = Color.FromArgb(58, 130, 255);
+    private int _lampBrightness = 80;
+    private List<string> _lampDevices = new();
+
+    /// <summary>把颜色按亮度缩放后发送到键盘。</summary>
+    private void ApplyLampColor(Color color)
+    {
+        _lampColor = color;
+
+        double scale = _lampBrightness / 100.0;
+        byte r = (byte)Math.Clamp(Math.Round(color.R * scale), 0, 255);
+        byte g = (byte)Math.Clamp(Math.Round(color.G * scale), 0, 255);
+        byte b = (byte)Math.Clamp(Math.Round(color.B * scale), 0, 255);
+
+        bool ok = LampArrayControl.PlaySolid(r, g, b, out string message);
+        Log.Write(ok ? $"灯光已应用 #{color.R:X2}{color.G:X2}{color.B:X2} 亮度 {_lampBrightness}%" : "灯光应用失败: " + message);
     }
     private ScrollHost BuildSettingsPage()
     {

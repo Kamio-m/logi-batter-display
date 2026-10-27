@@ -130,6 +130,51 @@ internal static class Cli
         case "--hidwrite": return HidScan.RunWrite(args);
         case "--hidread": return HidScan.RunRead(args);
         case "--rawsniff": return HidScan.RunRaw(args);
+        case "--lamp": return HidScan.RunLamp(args);
+        case "--lampset": return HidScan.RunLampSet(args);
+        case "--lamplist":
+                {
+                    var found = LampArrayControl.Probe();
+                    Console.WriteLine(found.Count == 0 ? "Windows 未找到 LampArray 设备" : string.Join(Environment.NewLine, found));
+                    return 0;
+                }
+
+        case "--lampcolor":
+                {
+                    byte lr = args.Length > 1 ? byte.Parse(args[1]) : (byte)255;
+                    byte lg = args.Length > 2 ? byte.Parse(args[2]) : (byte)0;
+                    byte lb = args.Length > 3 ? byte.Parse(args[3]) : (byte)0;
+                    bool ok = LampArrayControl.SetColor(lr, lg, lb, out string msg);
+                    Console.WriteLine($"{(ok ? "已发送" : "失败")}: {msg}");
+                    return ok ? 0 : 1;
+                }
+        case "--lampapi":
+                {
+                    foreach (var line in LampArrayControl.Describe()) Console.WriteLine(line);
+                    return 0;
+                }
+
+        case "--lampsolid":
+                {
+                    byte sr = args.Length > 1 ? byte.Parse(args[1]) : (byte)255;
+                    byte sg = args.Length > 2 ? byte.Parse(args[2]) : (byte)0;
+                    byte sb = args.Length > 3 ? byte.Parse(args[3]) : (byte)0;
+                    bool ok3 = LampArrayControl.PlaySolid(sr, sg, sb, out string msg3);
+                    Console.WriteLine($"{(ok3 ? "已播放" : "失败")}: {msg3}");
+                    return ok3 ? 0 : 1;
+                }
+
+        case "--lampflash":
+                {
+                    byte fr = args.Length > 1 ? byte.Parse(args[1]) : (byte)255;
+                    byte fg = args.Length > 2 ? byte.Parse(args[2]) : (byte)0;
+                    byte fb = args.Length > 3 ? byte.Parse(args[3]) : (byte)0;
+                    int times = args.Length > 4 ? int.Parse(args[4]) : 40;
+                    bool ok2 = LampArrayControl.Flash(fr, fg, fb, times, 150, out string msg2);
+                    Console.WriteLine($"{(ok2 ? "已连续发送" : "失败")}: {msg2}");
+                    return ok2 ? 0 : 1;
+                }
+
         case "--once": return Once();
             case "--features": return Features();
             case "--iconpreview": return IconPreview(args.Length > 1 ? args[1] : "icon-preview.png");

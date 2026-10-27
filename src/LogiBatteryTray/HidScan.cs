@@ -272,6 +272,99 @@ internal static class HidScan
         return 0;
     }
 
+    /// <summary>HID LampArray（用途页 0x59）探测：列出灯效特征报告并解析属性。</summary>
+    public static int RunLamp(string[] args)
+    {
+        Console.WriteLine("=== HID LampArray 探测 ===");
+
+        int found = 0;
+
+        foreach (var device in HidDevice.Enumerate())
+        {
+            if (device.UsagePage != 0x0059) continue;
+
+            found++;
+            Console.WriteLine();
+            Console.WriteLine($"设备: {device.Product}  VID_{device.VendorId:X4}&PID_{device.ProductId:X4}");
+            Console.WriteLine($"    用途 {device.UsagePage:X4}:{device.Usage:X4}  特征 {device.FeatureReportLength}B  输出 {device.OutputReportLength}B");
+            Console.WriteLine($"    路径 {device.Path}");
+
+            if (device.FeatureReportLength <= 0)
+            {
+                Console.WriteLine("    无特征报告");
+                continue;
+            }
+
+            for (int id = 0; id <= 255; id++)
+            {
+                var buffer = new byte[device.FeatureReportLength];
+                buffer[0] = (byte)id;
+
+                bool ok;
+                var handle = HandleOf(device);
+                try { ok = Native.HidD_GetFeature(handle, buffer, buffer.Length); }
+                catch { ok = false; }
+
+                if (!ok) continue;
+
+                Console.WriteLine($"    特征 id={id}: {BitConverter.ToString(buffer)}");
+
+                // LampArrayAttributesReport: [0]=id [1]=0x01 [2..3]=LampCount [4..15]=BBox [16]=Kind [17..20]=Interval
+                if (buffer.Length >= 21 && buffer[1] == 0x01)
+                {
+                    int lamps = BitConverter.ToUInt16(buffer, 2);
+                    uint interval = BitConverter.ToUInt32(buffer, 17);
+                    Console.WriteLine($"      → 属性报告: 灯珠 {lamps} 颗, 最小刷新间隔 {interval} 微秒");
+                }
+                else if (buffer.Length >= 3 && buffer[1] == 0x02)
+                {
+                    Console.WriteLine("      → 多灯更新报告（写入用）");
+                }
+            }
+        }
+
+        if (found == 0) Console.WriteLine("没有找到声明 0x59（LampArray）的设备");
+        return 0;
+    }
+    /// <summary>测试：往 LampArray 的 0x43 报告写一帧颜色。</summary>
+    public static int RunLampSet(string[] args)
+    {
+        int r = args.Length > 1 ? int.Parse(args[1]) : 255;
+        int g = args.Length > 2 ? int.Parse(args[2]) : 0;
+        int b = args.Length > 3 ? int.Parse(args[3]) : 0;
+
+        foreach (var device in HidDevice.Enumerate())
+        {
+            if (device.UsagePage != 0x0059) continue;
+
+            var handle = HandleOf(device);
+            var buffer = new byte[device.FeatureReportLength];
+            buffer[0] = 0x43;
+
+            bool read = Native.HidD_GetFeature(handle, buffer, buffer.Length);
+            Console.WriteLine($"读取 0x43: {(read ? "成功" : "失败")}  {BitConverter.ToString(buffer)}");
+
+            // 逐个偏移尝试写入颜色，观察哪个位置生效
+            foreach (int offset in new[] { 2, 3, 4, 24, 25, 26 })
+            {
+                if (offset + 2 >= buffer.Length) continue;
+
+                var probe = (byte[])buffer.Clone();
+                probe[0] = 0x43;
+                probe[offset] = (byte)r;
+                probe[offset + 1] = (byte)g;
+                probe[offset + 2] = (byte)b;
+
+                bool written = Native.HidD_SetFeature(handle, probe, probe.Length);
+                Console.WriteLine($"  写入偏移 {offset}: {(written ? "已发送" : "失败")}");
+            }
+
+            break;
+        }
+
+        Console.WriteLine("已发送测试帧，请观察键盘颜色是否变化。");
+        return 0;
+    }
     private static IntPtr HandleOf(HidDevice device)
     {
         // HidDevice 句柄不公开，这里重新打开一个只读句柄
