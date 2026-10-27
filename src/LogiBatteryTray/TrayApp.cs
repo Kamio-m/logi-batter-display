@@ -802,6 +802,9 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     }
     private void Apply(bool ok)
     {
+        // 全局低电量检查：与「托盘显示哪台」无关
+        CheckLowBatteryForAllDevices();
+
         // 明确选了估算设备 → 直接显示它（不看罗技设备在不在线）
         var explicitManual = ExplicitManualDevice();
         if (explicitManual != null)
@@ -883,8 +886,6 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
             _lastState = _header.Text;
             Log.Write("状态: " + _header.Text + (_service.Problem == null ? "" : " / " + _service.Problem));
         }
-
-        CheckLowBatteryForAllDevices();
 
         _mainForm?.UpdateView();
     }
