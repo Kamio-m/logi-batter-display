@@ -772,8 +772,8 @@ internal sealed class RoundedTextField : Control
         _box = new TextBox
         {
             BorderStyle = BorderStyle.None,
-            BackColor = Surface,
-            ForeColor = Color.White,
+            BackColor = _surface,
+            ForeColor = _textColor,
             Font = new Font("Segoe UI", 10f),
         };
         _box.TextChanged += (_, _) => { };
@@ -784,9 +784,35 @@ internal sealed class RoundedTextField : Control
 
     public TextBox InnerBox => _box;
 
+    private Color _surface = Color.FromArgb(26, 26, 29);
+
     [System.ComponentModel.Browsable(false)]
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
-    public Color Surface { get; set; } = Color.FromArgb(26, 26, 29);
+    public Color Surface
+    {
+        get => _surface;
+        set
+        {
+            _surface = value;
+            if (_box != null) _box.BackColor = value;
+            Invalidate();
+        }
+    }
+
+    private Color _textColor = Color.White;
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color TextColor
+    {
+        get => _textColor;
+        set
+        {
+            _textColor = value;
+            if (_box != null) _box.ForeColor = value;
+            Invalidate();
+        }
+    }
 
     [System.ComponentModel.Browsable(false)]
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
