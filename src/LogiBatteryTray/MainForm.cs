@@ -550,7 +550,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private ScrollHost BuildSettingsPage()
     {
         var page = NewPage();
-        float y = PlaceTitle(page.Content, "设置", "所有修改都会立即生效");
+        float y = PlaceTitle(page.Content, "设置", "");
         y += S(14);
 
         var tray = AddCard(page.Content, "托盘", 1, y);
@@ -627,7 +627,7 @@ internal sealed class MainForm : Form, IMessageFilter
     private ScrollHost BuildAboutPage()
     {
         var page = NewPage();
-        float y = PlaceTitle(page.Content, "关于", "版本信息与常用入口");
+        float y = PlaceTitle(page.Content, "关于", "");
         y += S(6);
 
         var card = NewCard(Math.Max((int)S(420), page.Content.Width - (int)S(56)), (int)S(208));
@@ -795,6 +795,10 @@ internal sealed class MainForm : Form, IMessageFilter
     private float PlaceTitle(Control parent, string title, string subtitle)
     {
         var titleLabel = AddLabel(parent, 28, 26, title, 17f, FontStyle.Bold, _fore);
+
+        if (string.IsNullOrWhiteSpace(subtitle))
+            return titleLabel.Bottom + S(14);
+
         var subtitleLabel = AddLabel(parent, 30, titleLabel.Bottom + S(2), subtitle, 8.5f, FontStyle.Regular, _secondary);
         return subtitleLabel.Bottom + S(10);
     }
