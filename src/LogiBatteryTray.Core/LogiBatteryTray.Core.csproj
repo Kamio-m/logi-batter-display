@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 逻辑层：HID 读取、灯效引擎、设置、扫描。界面无关，WinForms 启动器与 WPF 主窗口共用。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <AssemblyName>LogiBatteryTray.Core</AssemblyName>
+    <RootNamespace>LogiBatteryTray</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <!-- 逻辑层保持原样（internal 可见性不改），两个界面项目通过 IVT 访问。 -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="LogiBatteryTray" />
+    <InternalsVisibleTo Include="LogiBatteryTray.Wpf" />
+  </ItemGroup>
+
+  <!-- LampEngine 用 System.Drawing.Color 表示灯效颜色（原样保留，界面再转换）。 -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+  </ItemGroup>
+
+</Project>

@@ -23,9 +23,10 @@ internal sealed class MainForm : Form, IMessageFilter
     private readonly bool _light;
 
     private readonly Panel _sidebar;
-    private readonly Panel _pageHost;
+    private readonly PageHost _pageHost;
     private System.Windows.Forms.Timer _pageAnim;
     private Control _animPage;
+    private System.Windows.Forms.Timer _fadeTimer;
     private FlowLayoutPanel _lightingHost;
     private string _lightingSignature = "";
     private int _animStep;
@@ -177,11 +178,12 @@ internal sealed class MainForm : Form, IMessageFilter
         });
 
         // ---------- 右侧内容页（放在容器里，便于滑动时裁剪） ----------
-        _pageHost = new Panel
+        _pageHost = new PageHost
         {
             Location = new Point(SidebarWidth, 0),
             Size = new Size(ClientSize.Width - SidebarWidth, ClientSize.Height),
             BackColor = _background,
+            EmptyColor = _background,
         };
         EnableDoubleBuffer(_pageHost);
         Controls.Add(_pageHost);
@@ -193,10 +195,66 @@ internal sealed class MainForm : Form, IMessageFilter
             _pageHost.Controls.Add(page);
         }
 
+        Deactivate += (_, _) =>
+        {
+            ReclaimLighting();
+
+            // 切到后台 1.2 秒后再判断：此时前台优先权已消失，
+            // 若仍拿不到控制权，说明「背景光控件」里我们不是第一位
+            var check = new System.Windows.Forms.Timer { Interval = 120 };
+            check.Tick += (_, _) =>
+            {
+                check.Stop();
+                check.Dispose();
+
+                Task.Run(() =>
+                {
+                    bool available;
+                    try { available = LampArrayControl.IsAvailableFast(); }
+                    catch { return; }
+
+                    _backgroundNotFirst = !available;
+
+                    if (available)
+                    {
+                        // 后台也能控制 → 说明已排到第一顺位，隐藏提示条
+                        try
+                        {
+                            BeginInvoke(new Action(() =>
+                            {
+                                if (_lampNotice != null && _lampNotice.Visible)
+                                {
+                                    _lampNotice.Visible = false;
+                                    if (_lampControlCard != null) _lampControlCard.Top = (int)S(148);
+                                }
+
+                                _priorityHintShown = false;
+                            }));
+                        }
+                        catch { }
+
+                        return;
+                    }
+
+                    try
+                    {
+                        BeginInvoke(new Action(() =>
+                        {
+                            ShowPriorityHintOnce();
+                        }));
+                    }
+                    catch { }
+                });
+            };
+            check.Start();
+        };
+        Activated += (_, _) => ReclaimLighting();
+
         ShowPage(0);
         LoadFromSettings();
         UpdateView();
-        AllowDrop = true;
+        // 拖放在 OnHandleCreated 里注册（见下方 override），失败只记日志
+
         DragEnter += (_, e) =>
         {
             if (e.Data != null && e.Data.GetDataPresent(CardDragFormat)) e.Effect = DragDropEffects.Move;
@@ -553,7 +611,8 @@ internal sealed class MainForm : Form, IMessageFilter
     private ScrollHost BuildLightingPage()
     {
         var page = NewPage();
-        float y = PlaceTitle(page.Content, "灯光", "检测各设备的灯光控制能力");
+
+        float y = PlaceTitle(page.Content, "灯光", "点设备进入灯光设置");
 
         var outer = new FlowLayoutPanel
         {
@@ -578,18 +637,72 @@ internal sealed class MainForm : Form, IMessageFilter
             BackColor = Color.Transparent,
             Margin = Padding.Empty,
         };
+        // ---------- 二级页：某台设备的灯光设置 ----------
+        // 记录列表页控件，进入二级页时隐藏
+        _lampListViewControls = page.Content.Controls.Cast<Control>().ToList();
+
+        _lampDetailPanel = new Panel
+        {
+            Location = new Point(0, 0),
+            Size = new Size((int)S(1000), (int)S(600)),
+            BackColor = _background,
+            Visible = false,
+        };
+        page.Content.Controls.Add(_lampDetailPanel);
+
+        var back = new RoundedButton
+        {
+            Text = "← 返回",
+            Size = new Size((int)S(88), (int)S(32)),
+            Location = P(28, 24),
+            Surface = ButtonBack,
+            HoverSurface = ButtonHover,
+            TextColor = _fore,
+        };
+        back.Click += (_, _) =>
+        {
+            _lampDetailPanel.Visible = false;
+            foreach (var control in _lampListViewControls) control.Visible = true;
+            _lampBrightnessTimer?.Stop();
+        };
+        _lampDetailPanel.Controls.Add(back);
+
+        _lampTitle = new Label
+        {
+            Text = "灯光设置",
+            AutoSize = true,
+            Location = P(28, 76),
+            Font = new Font("Segoe UI", 17f, FontStyle.Bold),
+            ForeColor = _fore,
+            BackColor = Color.Transparent,
+        };
+        _lampDetailPanel.Controls.Add(_lampTitle);
+
+        _lampStatus = new Label
+        {
+            Text = "",
+            AutoSize = false,
+            Location = P(30, 112),
+            Size = new Size((int)S(820), (int)S(20)),
+            AutoEllipsis = true,
+            ForeColor = _secondary,
+            BackColor = Color.Transparent,
+            Font = new Font("Segoe UI", 8.5f),
+        };
+        _lampDetailPanel.Controls.Add(_lampStatus);
         host.Margin = Padding.Empty;
         outer.Controls.Add(host);
         page.Content.Controls.Add(outer);
 
         _lightingHost = host;
+        RefreshLampStatesAsync();
 
         // ---------- 键盘灯光控制（Windows 动态光效 / LampArray） ----------
         _lampDevices = LampArrayControl.Probe();
 
         var controlCard = new CardPanel
         {
-            Size = new Size((int)S(720), (int)S(210)),
+            Size = new Size((int)S(720), (int)S(350)),
             Radius = (int)S(12),
             Outline = _border,
             OutlineWidth = 1f,
@@ -598,9 +711,12 @@ internal sealed class MainForm : Form, IMessageFilter
             Margin = new Padding(0, (int)S(6), 0, 0),
         };
 
+        _lampControlCard = controlCard;
+        controlCard.Location = P(28, 148);
+
         var controlTitle = new Label
         {
-            Text = _lampDevices.Count > 0 ? "键盘灯光（点一下窗口再选色才生效）" : "键盘灯光（未检测到 LampArray 设备）",
+            Text = _lampDevices.Count > 0 ? "灯光设置" : "未检测到 LampArray 设备",
             AutoSize = true,
             Location = P(20, 16),
             Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
@@ -608,39 +724,53 @@ internal sealed class MainForm : Form, IMessageFilter
             BackColor = Color.Transparent,
         };
         controlCard.Controls.Add(controlTitle);
+        _lampTitle = controlTitle;
 
         if (_lampDevices.Count > 0)
         {
-            string[] palette =
+            // ---------- 基本灯效（左侧网格） ----------
+            (string Text, LampMode Mode)[] effects =
             {
-                "#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#00C7BE", "#32ADE6",
-                "#3A82FF", "#AF52DE", "#FF2D55", "#FFFFFF", "#8E8E93", "#000000",
+                ("恒亮", LampMode.Static), ("呼吸", LampMode.Breathing), ("闪烁", LampMode.Strobe),
+                ("彩色循环", LampMode.ColorCycle), ("彩虹", LampMode.Rainbow),
+                ("智能", LampMode.Smart), ("关闭", LampMode.Off),
             };
 
-            for (int i = 0; i < palette.Length; i++)
+            _effectButtons.Clear();
+            for (int i = 0; i < effects.Length; i++)
             {
-                var color = ColorTranslator.FromHtml(palette[i]);
-                int index = i;
+                var (effectText, effectMode) = effects[i];
+                int column = i % 3;
+                int row = i / 3;
 
-                var swatch = new RoundedButton
+                var effectButton = new RoundedButton
                 {
-                    Text = "",
-                    Size = new Size((int)S(34), (int)S(34)),
-                    Location = new Point((int)S(20 + i * 40), (int)S(54)),
-                    Surface = color,
-                    HoverSurface = ControlPaint.Light(color, 0.15f),
-                    TextColor = color,
+                    Text = effectText,
+                    Size = new Size((int)S(110), (int)S(36)),
+                    Location = new Point((int)S(20 + column * 120), (int)S(56 + row * 46)),
+                    Surface = effectMode == _lampEffect ? _accent : ButtonBack,
+                    HoverSurface = effectMode == _lampEffect ? ControlPaint.Light(_accent, 0.1f) : ButtonHover,
+                    TextColor = effectMode == _lampEffect ? Color.White : _fore,
                 };
 
-                swatch.Click += (_, _) => ApplyLampColor(color);
-                controlCard.Controls.Add(swatch);
+                effectButton.Click += (_, _) =>
+                {
+                    _lampEffect = effectMode;
+                    LampEngine.Configure(effectMode, _lampColor, _lampBrightness, _lampSpeed);
+                    HighlightEffectButtons();
+                    BuildLampOptions(effectMode);
+                };
+
+                _effectButtons.Add((effectButton, effectMode));
+                controlCard.Controls.Add(effectButton);
             }
 
+            // ---------- 亮度 ----------
             var brightnessLabel = new Label
             {
                 Text = "亮度",
                 AutoSize = true,
-                Location = P(20, 108),
+                Location = P(20, 214),
                 ForeColor = _secondary,
                 BackColor = Color.Transparent,
                 Font = new Font("Segoe UI", 9f),
@@ -648,62 +778,105 @@ internal sealed class MainForm : Form, IMessageFilter
 
             var brightnessValue = new Label
             {
-                Text = "80%",
+                Text = _lampBrightness + "%",
                 AutoSize = true,
-                Location = P(60, 108),
+                Location = P(60, 214),
                 ForeColor = _accent,
                 BackColor = Color.Transparent,
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
             };
 
-            int[] levels = { 20, 40, 60, 80, 100 };
-            for (int i = 0; i < levels.Length; i++)
+            var brightnessSlider = new SliderControl
             {
-                int level = levels[i];
-                var button = new RoundedButton
-                {
-                    Text = level + "%",
-                    Size = new Size((int)S(64), (int)S(30)),
-                    Location = new Point((int)S(96 + i * 70), (int)S(103)),
-                    Surface = ButtonBack,
-                    HoverSurface = ButtonHover,
-                    TextColor = _fore,
-                };
-
-                button.Click += (_, _) =>
-                {
-                    _lampBrightness = level;
-                    brightnessValue.Text = level + "%";
-                    ApplyLampColor(_lampColor);
-                };
-
-                controlCard.Controls.Add(button);
-            }
-
-            var restore = new RoundedButton
-            {
-                Text = "恢复系统控制",
-                Size = new Size((int)S(120), (int)S(30)),
-                Location = new Point((int)S(456), (int)S(103)),
-                Surface = ButtonBack,
-                HoverSurface = ButtonHover,
-                TextColor = _fore,
+                Size = new Size((int)S(260), (int)S(30)),
+                Location = P(96, 206),
+                Steps = 9,
+                Value = _lampBrightness,
+                FillColor = _accent,
+                TrackColor = _border,
             };
 
-            restore.Click += (_, _) =>
+            brightnessSlider.ValueChanged += (_, _) =>
             {
-                LampArrayControl.StopAll();
-                _lampKeepAlive?.Stop();
-                Log.Write("灯光控制权已交还系统");
+                _lampBrightness = Math.Max(1, brightnessSlider.Value);
+                brightnessValue.Text = _lampBrightness + "%";
+                LampEngine.SetBrightness(_lampBrightness);
+                _brightnessDragging = true;
+                _brightnessDragUntil = DateTime.UtcNow.AddSeconds(2);
             };
 
-            controlCard.Controls.Add(restore);
+            _lampBrightnessSlider = brightnessSlider;
+            _lampBrightnessValue = brightnessValue;
+            controlCard.Controls.Add(brightnessSlider);
+            controlCard.Controls.Add(brightnessLabel);
+            controlCard.Controls.Add(brightnessValue);
 
+            // ---------- 控制权提示条（仿奥创「设定 Dynamic Lighting」） ----------
+            _lampNotice = new CardPanel
+            {
+                Location = P(20, 44),
+                Size = new Size((int)S(680), (int)S(56)),
+                Radius = (int)S(10),
+                Outline = _accent,
+                OutlineWidth = 1.2f,
+                Surface = _cardColor,
+                Background = _background,
+                Visible = false,
+            };
+
+            var noticeText = new Label
+            {
+                Text = "灯光被系统或其他程序接管：请把 LogiBatteryTray 排到「背景光控件」第一位",
+                AutoSize = false,
+                Location = P(14, 10),
+                Size = new Size((int)S(470), (int)S(20)),
+                ForeColor = _fore,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 8.5f),
+            };
+
+            var noticeButton = new RoundedButton
+            {
+                Text = "设定 Dynamic Lighting",
+                Size = new Size((int)S(160), (int)S(30)),
+                Location = new Point((int)S(500), (int)S(17)),
+                Surface = _accent,
+                HoverSurface = ControlPaint.Light(_accent, 0.08f),
+                TextColor = Color.White,
+            };
+            noticeButton.Click += (_, _) => OpenDynamicLightingSettings();
+
+            _lampNoticeText = noticeText;
+            _lampNotice.Controls.AddRange(new Control[] { noticeText, noticeButton });
+            _lampDetailPanel.Controls.Add(_lampNotice);
+            _lampNotice.Location = P(28, 150);
+            // ---------- 右侧：动态选项面板 ----------
+            _lampOptions = new Panel
+            {
+                Location = P(396, 44),
+                Size = new Size((int)S(304), (int)S(258)),
+                BackColor = Color.Transparent,
+            };
+            controlCard.Controls.Add(_lampOptions);
+            BuildLampOptions(_lampEffect);
+
+            // ---------- 高级灯效说明 ----------
+            var advanced = new Label
+            {
+                Text = "高级灯效：需要多灯区设备，当前键盘只有 1 个灯区，暂不支持。",
+                AutoSize = true,
+                Location = P(20, 300),
+                ForeColor = _secondary,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 8.5f),
+            };
+            controlCard.Controls.Add(advanced);
+            // ---------- 提示 ----------
             var hint = new Label
             {
                 Text = "单区 RGB：整块键盘同一颜色。若灯不亮，点一下本窗口再选色。",
                 AutoSize = true,
-                Location = P(20, 152),
+                Location = P(20, 322),
                 ForeColor = _secondary,
                 BackColor = Color.Transparent,
                 Font = new Font("Segoe UI", 8.5f),
@@ -712,13 +885,38 @@ internal sealed class MainForm : Form, IMessageFilter
             controlCard.Controls.AddRange(new Control[] { brightnessLabel, brightnessValue, hint });
         }
 
-        outer.Controls.Add(controlCard);
+        _lampDetailPanel.Controls.Add(controlCard);
 
         RefreshLighting();
         return page;
     }
 
     /// <summary>重新探测灯光能力并刷新卡片。</summary>
+    /// <summary>后台线程读取 LampArray 状态，避免阻塞界面。</summary>
+    private void RefreshLampStatesAsync()
+    {
+        if (_lampStatesLoading) return;
+        _lampStatesLoading = true;
+
+        Task.Run(() =>
+        {
+            List<string> states;
+            try { states = LampArrayControl.State(); }
+            catch { states = new List<string>(); }
+
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    _lampStatesCache = states;
+                    _lampStatesLoading = false;
+                    _lightingSignature = "";
+                    RefreshLighting();
+                }));
+            }
+            catch { _lampStatesLoading = false; }
+        });
+    }
     private void RefreshLighting()
     {
         if (_lightingHost == null) return;
@@ -734,6 +932,150 @@ internal sealed class MainForm : Form, IMessageFilter
         {
             _lightingHost.Controls.Remove(control);
             control.Dispose();
+        }
+
+        // 灯效设备（可点击进入调光）——用缓存值，避免每次刷新都枚举 WinRT
+        var realLampStates = _lampStatesCache.Where(s => !s.StartsWith("正在检测") && !s.StartsWith("未检测到")).ToList();
+
+        if (realLampStates.Count == 0)
+        {
+            var retryCard = new CardPanel
+            {
+                Size = new Size((int)S(720), (int)S(96)),
+                Radius = (int)S(12),
+                Outline = _border,
+                OutlineWidth = 1f,
+                Surface = _cardColor,
+                Background = _background,
+                Margin = new Padding(0, 0, 0, (int)S(10)),
+            };
+
+            retryCard.Controls.Add(new Label
+            {
+                Text = _lampStatesCache.FirstOrDefault() ?? "正在检测灯效设备…",
+                AutoSize = true,
+                Location = P(20, 18),
+                Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+                ForeColor = _fore,
+                BackColor = Color.Transparent,
+            });
+
+            var retry = new RoundedButton
+            {
+                Text = "重新检测",
+                Size = new Size((int)S(96), (int)S(30)),
+                Location = P(20, 50),
+                Surface = _accent,
+                HoverSurface = ControlPaint.Light(_accent, 0.08f),
+                TextColor = Color.White,
+            };
+            retry.Click += (_, _) =>
+            {
+                _lampStatesCache = new List<string> { "正在检测灯效设备…" };
+                RefreshLampStatesAsync();
+            };
+
+            retryCard.Controls.Add(retry);
+            _lightingHost.Controls.Add(retryCard);
+        }
+
+        foreach (var lampState in realLampStates)
+        {
+            string lampName = lampState.Split('|')[0].Trim();
+
+            var lampCard = new CardPanel
+            {
+                Size = new Size((int)S(720), (int)S(104)),
+                Radius = (int)S(12),
+                Outline = _accent,
+                OutlineWidth = 1.5f,
+                Surface = _cardColor,
+                Background = _background,
+                Cursor = Cursors.Hand,
+                Margin = new Padding(0, 0, 0, (int)S(10)),
+            };
+
+            var lampTitle = new Label
+            {
+                Text = lampName,
+                AutoSize = true,
+                Location = P(20, 16),
+                Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                ForeColor = _fore,
+                BackColor = Color.Transparent,
+            };
+
+            var lampBadge = new Label
+            {
+                Text = "点击进入灯光设置",
+                AutoSize = true,
+                Location = P(20, 42),
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = _accent,
+                BackColor = Color.Transparent,
+            };
+
+            var lampDetail = new Label
+            {
+                Text = lampState,
+                AutoSize = false,
+                Location = P(20, 64),
+                Size = new Size((int)S(660), (int)S(30)),
+                AutoEllipsis = true,
+                ForeColor = _secondary,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 8f),
+            };
+
+            void OpenLamp(object _, EventArgs __)
+            {
+                if (_lampDetailPanel == null) return;
+
+                foreach (var control in _lampListViewControls) control.Visible = false;
+                _lampDetailPanel.Visible = true;
+                if (_lampTitle != null) _lampTitle.Text = lampName;
+                if (_lampStatus != null) _lampStatus.Text = lampState;
+                if (_lampControlCard != null) _lampControlCard.Visible = true;
+                SyncLampFromEngine();
+                        EnsureLampControl("进入");
+
+                // 进入灯光页刷新一次：直接读「背景光控件」排序（注册表），立刻判断
+                if (!LampArrayControl.IsFirstPriority(out string firstProvider))
+                {
+                    if (_lampNoticeText != null)
+                        _lampNoticeText.Text = $"灯光被「{firstProvider}」优先控制：请把 LogiBatteryTray 排到「背景光控件」第一位";
+
+                    ShowPriorityHintOnce();
+                }
+                else
+                {
+                    if (_lampNotice != null && _lampNotice.Visible)
+                    {
+                        _lampNotice.Visible = false;
+                        if (_lampControlCard != null) _lampControlCard.Top = (int)S(148);
+                    }
+                }
+
+                // 订阅系统控制权变化事件
+                if (!_availabilityHooked)
+                {
+                    _availabilityHooked = true;
+                    LampArrayControl.AttachAvailabilityWatcher();
+                    LampArrayControl.AvailabilityChanged += available =>
+                    {
+                        if (available) _lampControlWarned = false;
+                        else BeginInvoke(new Action(() => EnsureLampControl("被抢占")));
+                    };
+                }
+            }
+
+            lampCard.Click += OpenLamp;
+            lampTitle.Click += OpenLamp;
+            lampBadge.Click += OpenLamp;
+            lampDetail.Click += OpenLamp;
+
+            lampCard.Controls.AddRange(new Control[] { lampTitle, lampBadge, lampDetail });
+            _lightingHost.Controls.Add(lampCard);
         }
 
         foreach (var item in items)
@@ -815,13 +1157,94 @@ internal sealed class MainForm : Form, IMessageFilter
         _lightingHost.ResumeLayout();
     }
     private System.Windows.Forms.Timer _lampKeepAlive;
-    private Color _lampColor = Color.FromArgb(58, 130, 255);
-    private int _lampBrightness = 80;
+    private Color _lampColor = LampEngine.BaseColor;
+    private int _lampBrightness = Math.Max(1, LampEngine.Brightness);
     private List<string> _lampDevices = new();
+    private CardPanel _lampControlCard;
+    private Label _lampTitle;
+    private Label _lampStatus;
+    private List<Control> _lampListViewControls = new();
+    private List<string> _lampStatesCache = new() { "正在检测灯效设备…" };
+    private bool _lampStatesLoading;
+    private LampMode _lampEffect = LampEngine.Mode;
+    private double _lampSpeed = LampEngine.Speed;
+    private readonly List<(RoundedButton Button, LampMode Mode)> _effectButtons = new();
+    private readonly List<(RoundedButton Button, double Speed)> _speedButtons = new();
+    private SliderControl _lampBrightnessSlider;
+    private System.Windows.Forms.Timer _lampBrightnessTimer;
+    private Label _lampBrightnessValue;
+    private bool _brightnessDragging;
+    private DateTime _brightnessDragUntil = DateTime.MinValue;
+    private Panel _lampOptions;
+    private Panel _lampDetailPanel;
 
     /// <summary>把颜色按亮度缩放后发送到键盘。</summary>
+    private bool _lampControlWarned;
+    private bool _availabilityHooked;
+    private bool _backgroundNotFirst;
+
+    /// <summary>确认本程序是否持有灯光控制权；没有就提示用户去系统设置排序。</summary>
+    private CardPanel _lampNotice;
+    private Label _lampNoticeText;
+
+    /// <summary>显示「设定 Dynamic Lighting」提示条（替代弹窗，仿奥创）。</summary>
+    private bool _priorityHintShown;
+
+    private void ShowPriorityHintOnce()
+    {
+        if (_lampNotice == null) return;
+        _priorityHintShown = true;
+
+        if (!_lampNotice.Visible)
+        {
+            _lampNotice.Visible = true;
+            if (_lampControlCard != null)
+                _lampControlCard.Top = _lampNotice.Bottom + (int)S(10);
+        }
+
+        _lampNotice.BringToFront();
+    }
+    private void EnsureLampControl(string action)
+    {
+        if (action == "关闭") return;          // 关灯不需要控制权
+
+        bool available;
+        try { available = LampArrayControl.IsAvailableFast(); }
+        catch { available = true; }
+
+        if (available)
+        {
+            // 前台可用不代表排在第一顺位，提示条保持显示（由后台检测决定是否隐藏）
+            return;
+        }
+
+        // 不再弹窗：显示页面内提示条（和奥创的「设定 Dynamic Lighting」一致）
+        ShowPriorityHintOnce();
+    }
+    /// <summary>打开 Windows 的动态光效设置页。</summary>
+    private static void OpenDynamicLightingSettings()
+    {
+        string[] uris =
+        {
+            "ms-settings:dynamiclighting",
+            "ms-settings:personalization-dynamiclighting",
+            "ms-settings:personalization",
+        };
+
+        foreach (string uri in uris)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri) { UseShellExecute = true });
+                return;
+            }
+            catch { }
+        }
+    }
     private void ApplyLampColor(Color color)
     {
+        EnsureLampControl(_lampEffect == LampMode.Off ? "关闭" : "应用");
+
         _lampColor = color;
 
         double scale = _lampBrightness / 100.0;
@@ -829,20 +1252,460 @@ internal sealed class MainForm : Form, IMessageFilter
         byte g = (byte)Math.Clamp(Math.Round(color.G * scale), 0, 255);
         byte b = (byte)Math.Clamp(Math.Round(color.B * scale), 0, 255);
 
-        bool ok = LampArrayControl.PlaySolid(r, g, b, out string message);
+        LampEngine.Configure(_lampEffect == LampMode.Off ? LampMode.Static : _lampEffect, color, _lampBrightness, _lampSpeed);
+        bool ok = true; string message = "";
         Log.Write(ok ? $"灯光已应用 #{color.R:X2}{color.G:X2}{color.B:X2} 亮度 {_lampBrightness}%" : "灯光应用失败: " + message);
 
         // 3 秒保活：被其他程序覆盖后自动抢回
         _lampKeepAlive?.Stop();
-        _lampKeepAlive = new System.Windows.Forms.Timer { Interval = 1000 };
+        _lampKeepAlive = new System.Windows.Forms.Timer { Interval = 2000 };
         _lampKeepAlive.Tick += (_, _) =>
         {
             byte kr = (byte)Math.Clamp(Math.Round(_lampColor.R * (_lampBrightness / 100.0)), 0, 255);
             byte kg = (byte)Math.Clamp(Math.Round(_lampColor.G * (_lampBrightness / 100.0)), 0, 255);
             byte kb = (byte)Math.Clamp(Math.Round(_lampColor.B * (_lampBrightness / 100.0)), 0, 255);
-            LampArrayControl.PlaySolid(kr, kg, kb, out _);
+            LampArrayControl.ApplyIfNeeded(kr, kg, kb, out _);
         };
         _lampKeepAlive.Start();
+    }
+    /// <summary>刷新灯效与速度按钮的选中态。</summary>
+    /// <summary>按所选灯效构建右侧选项面板（参照 Armoury Crate 的 Aura 灯效面板）。</summary>
+    /// <summary>色环取色弹窗。</summary>
+    private void PickColor(Color initial, Action<Color> onPicked)
+    {
+        var saved = _app.Settings.CustomColors ?? new List<string>();
+        var savedColors = saved
+            .Select(hex => { try { return ColorTranslator.FromHtml(hex); } catch { return Color.Empty; } })
+            .Where(c => c != Color.Empty)
+            .ToList();
+
+        using var dialog = new ColorPickerForm(initial, _cardColor, _fore, _accent, _border, DeviceDpi / 96f, savedColors);
+
+        var result = dialog.ShowDialog(this);
+
+        // 自定义颜色持久化（含删除结果）
+        _app.Settings.CustomColors = dialog.CustomColors
+            .Select(c => $"#{c.R:X2}{c.G:X2}{c.B:X2}")
+            .ToList();
+        _app.Settings.Save();
+
+        if (result == DialogResult.OK)
+            onPicked(dialog.SelectedColor);
+    }
+    /// <summary>后台轮询设备亮度，让 Fn 调节也能反映到滑条。</summary>
+    /// <summary>窗口失焦时重新接管灯效（Windows 会把控制权交还背景控制器）。</summary>
+    private void ReclaimLighting()
+    {
+        if (LampEngine.Mode == LampMode.Off) return;
+
+        Task.Run(() =>
+        {
+            try
+            {
+                if (LampArrayControl.IsAvailable()) return;   // 仍归我们控制，无需重抢
+                BeginInvoke(new Action(() => LampEngine.Reapply()));
+            }
+            catch { }
+        });
+    }
+    private void StartBrightnessPolling()
+    {
+        _lampBrightnessTimer ??= new System.Windows.Forms.Timer { Interval = 1500 };
+
+        _lampBrightnessTimer.Tick -= OnBrightnessTick;
+        _lampBrightnessTimer.Tick += OnBrightnessTick;
+        _lampBrightnessTimer.Start();
+    }
+
+    private void OnBrightnessTick(object sender, EventArgs e)
+    {
+        if (DateTime.UtcNow < _brightnessDragUntil) return;
+
+        Task.Run(() =>
+        {
+            int value = LampEngine.ReadBrightness();
+            if (value < 0) return;
+
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    if (DateTime.UtcNow < _brightnessDragUntil) return;
+                    if (Math.Abs(value - _lampBrightness) < 2) return;
+
+                    _lampBrightness = Math.Max(1, value);
+                    if (_lampBrightnessSlider != null) _lampBrightnessSlider.Value = _lampBrightness;
+                    if (_lampBrightnessValue != null) _lampBrightnessValue.Text = _lampBrightness + "%";
+                }));
+            }
+            catch { }
+        });
+    }
+    private void BuildLampOptions(LampMode mode)
+    {
+        if (_lampOptions == null) return;
+
+        _lampOptions.SuspendLayout();
+        foreach (Control control in _lampOptions.Controls.Cast<Control>().ToList())
+        {
+            _lampOptions.Controls.Remove(control);
+            control.Dispose();
+        }
+
+        void Label(string text, float x, float y, float size = 9f, bool bold = false)
+        {
+            _lampOptions.Controls.Add(new Label
+            {
+                Text = text,
+                AutoSize = true,
+                Location = P(x, y),
+                ForeColor = bold ? _fore : _secondary,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", size, bold ? FontStyle.Bold : FontStyle.Regular),
+            });
+        }
+
+        RoundRadio Radio(float x, float y, bool isChecked)
+        {
+            var radio = new RoundRadio
+            {
+                Location = P(x, y),
+                RingColor = _secondary,
+                AccentColor = _accent,
+                Checked = isChecked,
+            };
+            _lampOptions.Controls.Add(radio);
+            return radio;
+        }
+
+        void Swatch(float x, float y, Color color, bool secondary = false)
+        {
+            var swatch = new RoundedButton
+            {
+                Text = "",
+                Size = new Size((int)S(34), (int)S(34)),
+                Location = P(x, y),
+                Surface = color,
+                HoverSurface = ControlPaint.Light(color, 0.15f),
+                TextColor = color,
+            };
+
+            swatch.Click += (_, _) => PickColor(color, picked =>
+            {
+                if (secondary)
+                {
+                    LampEngine.ConfigureOptions(second: picked);
+                    LampEngine.Configure(_lampEffect, _lampColor, _lampBrightness, _lampSpeed);
+                }
+                else
+                {
+                    _lampColor = picked;
+                    ApplyLampColor(picked);
+                }
+
+                BuildLampOptions(_lampEffect);
+            });
+
+            _lampOptions.Controls.Add(swatch);
+        }
+
+        SliderControl SpeedSlider(float y)
+        {
+            var slider = new SliderControl
+            {
+                Size = new Size((int)S(272), (int)S(34)),
+                Location = P(12, y),
+                Steps = 5,
+                FillColor = _accent,
+                TrackColor = _border,
+                Value = SpeedToSlider(_lampSpeed),
+            };
+
+            slider.ValueChanged += (_, _) =>
+            {
+                _lampSpeed = SliderToSpeed(slider.Value);
+                LampEngine.Configure(_lampEffect, _lampColor, _lampBrightness, _lampSpeed);
+                HighlightEffectButtons();
+            };
+
+            _lampOptions.Controls.Add(slider);
+            return slider;
+        }
+
+        switch (mode)
+        {
+            case LampMode.Static:
+            {
+                // 单灯区设备：恒亮只提供单色
+                Label("色彩", 12, 6);
+                Swatch(12, 34, _lampColor, false);
+                break;
+            }
+            case LampMode.Breathing:
+            case LampMode.Strobe:
+            {
+                // 单灯区设备：只提供单色 + 随机
+                Label("色彩", 12, 6);
+
+                var singleRadio = Radio(12, 32, !LampEngine.UseRandom);
+                Label("单色", 44, 34);
+
+                var random2 = new SquareCheck
+                {
+                    Location = P(150, 34),
+                    RingColor = _secondary,
+                    AccentColor = _accent,
+                    Checked = LampEngine.UseRandom,
+                };
+                Swatch(44, 60, _lampColor, false);
+                var colorSwatch = _lampOptions.Controls[_lampOptions.Controls.Count - 1];
+
+                random2.CheckedChanged += (_, _) =>
+                {
+                    if (random2.Checked)
+                    {
+                        singleRadio.Checked = false;
+                        colorSwatch.Visible = false;
+                    }
+                    else
+                    {
+                        singleRadio.Checked = true;
+                        colorSwatch.Visible = true;
+                    }
+
+                    LampEngine.ConfigureOptions(random: random2.Checked);
+                };
+
+                singleRadio.CheckedChanged += (_, _) =>
+                {
+                    if (!singleRadio.Checked) return;
+
+                    if (random2.Checked) random2.Checked = false;
+                    colorSwatch.Visible = true;
+                    LampEngine.ConfigureOptions(random: false);
+                };
+                _lampOptions.Controls.Add(random2);
+                Label("随机", 178, 34);
+
+                Label("速度", 12, 120);
+                SpeedSlider(142);
+                break;
+            }
+            case LampMode.ColorCycle:
+                _lampOptions.Controls.Add(new Label
+                {
+                    Text = "此模式下设置项目无法修改。",
+                    AutoSize = false,
+                    Size = new Size((int)S(280), (int)S(40)),
+                    Location = P(12, 110),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    ForeColor = _fore,
+                    BackColor = Color.Transparent,
+                    Font = new Font("Segoe UI", 9.5f),
+                });
+                break;
+
+            case LampMode.Rainbow:
+                Label("样式", 12, 6);
+                var style = new RoundedDropDown
+                {
+                    Location = P(12, 30),
+                    Size = new Size((int)S(272), (int)S(34)),
+                    Surface = _background,
+                    HoverSurface = ButtonHover,
+                    TextColor = _fore,
+                    AccentColor = _accent,
+                    PopupBackground = _cardColor,
+                };
+                style.SetItems(new[] { "彩虹（全色域）", "冷暖渐变", "单色流转" });
+                style.SelectedIndex = 0;
+                _lampOptions.Controls.Add(style);
+
+                Label("速度", 12, 86);
+                SpeedSlider(108);
+                break;
+
+            case LampMode.Smart:
+            {
+                var source = new RoundedDropDown
+                {
+                    Location = P(0, 0),
+                    Size = new Size((int)S(280), (int)S(34)),
+                    Surface = _background,
+                    HoverSurface = ButtonHover,
+                    TextColor = _fore,
+                    AccentColor = _accent,
+                    PopupBackground = _cardColor,
+                };
+                source.SetItems(new[] { "依电量", "依估算电量", "依 CPU 占用" });
+                source.SelectedIndex = LampEngine.Source switch
+                {
+                    SmartSource.EstimatedBattery => 1,
+                    SmartSource.Cpu => 2,
+                    _ => 0,
+                };
+
+                source.SelectedIndexChanged += (_, _) =>
+                {
+                    var chosen = source.SelectedIndex switch
+                    {
+                        1 => SmartSource.EstimatedBattery,
+                        2 => SmartSource.Cpu,
+                        _ => SmartSource.Battery,
+                    };
+
+                    LampEngine.ConfigureOptions(source: chosen);
+                    BuildLampOptions(LampMode.Smart);
+                };
+
+                _lampOptions.Controls.Add(source);
+
+                Label("低点", 0, 52, 9f);
+                var lowValue = new Label
+                {
+                    Text = LampEngine.SmartLow + "%",
+                    AutoSize = true,
+                    Location = P(200, 52),
+                    ForeColor = _fore,
+                    BackColor = Color.Transparent,
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                };
+                _lampOptions.Controls.Add(lowValue);
+
+                var lowSwatch = new RoundedButton
+                {
+                    Text = "",
+                    Size = new Size((int)S(24), (int)S(24)),
+                    Location = P(0, 74),
+                    Surface = LampEngine.SmartLowColor,
+                    HoverSurface = ControlPaint.Light(LampEngine.SmartLowColor, 0.15f),
+                    TextColor = LampEngine.SmartLowColor,
+                };
+                _lampOptions.Controls.Add(lowSwatch);
+
+                var lowSlider = new SliderControl
+                {
+                    Size = new Size((int)S(280), (int)S(30)),
+                    Location = P(0, 102),
+                    Steps = 11,
+                    Value = LampEngine.SmartLow,
+                    FillColor = LampEngine.SmartLowColor,
+                    TrackColor = _border,
+                };
+                _lampOptions.Controls.Add(lowSlider);
+
+                Label("高点", 0, 142, 9f);
+                var highValue = new Label
+                {
+                    Text = LampEngine.SmartHigh + "%",
+                    AutoSize = true,
+                    Location = P(200, 142),
+                    ForeColor = _fore,
+                    BackColor = Color.Transparent,
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                };
+                _lampOptions.Controls.Add(highValue);
+
+                var highSwatch = new RoundedButton
+                {
+                    Text = "",
+                    Size = new Size((int)S(24), (int)S(24)),
+                    Location = P(0, 164),
+                    Surface = LampEngine.SmartHighColor,
+                    HoverSurface = ControlPaint.Light(LampEngine.SmartHighColor, 0.15f),
+                    TextColor = LampEngine.SmartHighColor,
+                };
+                _lampOptions.Controls.Add(highSwatch);
+
+                var highSlider = new SliderControl
+                {
+                    Size = new Size((int)S(280), (int)S(30)),
+                    Location = P(0, 192),
+                    Steps = 11,
+                    Value = LampEngine.SmartHigh,
+                    FillColor = LampEngine.SmartHighColor,
+                    TrackColor = _border,
+                };
+                _lampOptions.Controls.Add(highSlider);
+
+                bool cpuSource = LampEngine.Source == SmartSource.Cpu;
+                Label(cpuSource ? "占用低" : "电量低", 0, 226, 8.5f);
+                Label(cpuSource ? "占用高" : "电量高", 226, 226, 8.5f);
+
+                lowSlider.ValueChanged += (_, _) =>
+                {
+                    LampEngine.ConfigureOptions(smartLow: lowSlider.Value);
+                    lowValue.Text = lowSlider.Value + "%";
+                };
+
+                highSlider.ValueChanged += (_, _) =>
+                {
+                    LampEngine.ConfigureOptions(smartHigh: highSlider.Value);
+                    highValue.Text = highSlider.Value + "%";
+                };
+
+                lowSwatch.Click += (_, _) => PickColor(LampEngine.SmartLowColor, picked =>
+                {
+                    LampEngine.ConfigureOptions(smartLowColor: picked);
+                    BuildLampOptions(LampMode.Smart);
+                });
+
+                highSwatch.Click += (_, _) => PickColor(LampEngine.SmartHighColor, picked =>
+                {
+                    LampEngine.ConfigureOptions(smartHighColor: picked);
+                    BuildLampOptions(LampMode.Smart);
+                });
+
+                break;
+        }
+        }
+
+        _lampOptions.ResumeLayout();
+    }
+
+    private static int SpeedToSlider(double speed) => speed switch
+    {
+        <= 0.6 => 0,
+        <= 0.85 => 25,
+        <= 1.2 => 50,
+        <= 1.7 => 75,
+        _ => 100,
+    };
+
+    private static double SliderToSpeed(int value) => value switch
+    {
+        <= 0 => 0.4,
+        <= 25 => 0.7,
+        <= 50 => 1.0,
+        <= 75 => 1.5,
+        _ => 2.2,
+    };
+    /// <summary>把引擎当前状态同步到界面字段（启动恢复灯效后调用）。</summary>
+    private void SyncLampFromEngine()
+    {
+        _lampEffect = LampEngine.Mode;
+        _lampColor = LampEngine.BaseColor;
+        _lampBrightness = Math.Max(1, LampEngine.Brightness);
+        _lampSpeed = Math.Clamp(LampEngine.Speed, 0.4, 2.4);
+    }
+    private void HighlightEffectButtons()
+    {
+        foreach (var (button, mode) in _effectButtons)
+        {
+            bool active = mode == _lampEffect;
+            button.Surface = active ? _accent : ButtonBack;
+            button.HoverSurface = active ? ControlPaint.Light(_accent, 0.1f) : ButtonHover;
+            button.TextColor = active ? Color.White : _fore;
+            button.Invalidate();
+        }
+
+        foreach (var (button, speed) in _speedButtons)
+        {
+            bool active = Math.Abs(_lampSpeed - speed) < 0.01;
+            button.Surface = active ? _accent : ButtonBack;
+            button.TextColor = active ? Color.White : _fore;
+            button.Invalidate();
+        }
     }
     private ScrollHost BuildSettingsPage()
     {
@@ -1953,6 +2816,13 @@ internal sealed class MainForm : Form, IMessageFilter
     }
     private void ShowPage(int index)
     {
+        if (index == 1)
+        {
+            _lampStatesCache = new List<string> { "正在检测灯效设备…" };
+            _lightingSignature = "";
+            RefreshLampStatesAsync();
+        }
+
         if (index < 0 || index >= _pages.Length) return;
 
         int direction = _currentPage < 0 || index > _currentPage ? 1 : -1;
@@ -1965,7 +2835,7 @@ internal sealed class MainForm : Form, IMessageFilter
 
             if (active)
             {
-                _pages[i].Location = new Point(direction * (int)S(26), 0);
+                _pages[i].Location = new Point(0, 0);
                 _pages[i].BringToFront();
             }
         }
@@ -1973,40 +2843,12 @@ internal sealed class MainForm : Form, IMessageFilter
         for (int i = 0; i < _navs.Length; i++)
             _navs[i].Selected = i == index;
 
-        AnimatePage(_pages[index], direction);
-    }
-
-    /// <summary>新页面从侧边滑入（缓出），约 180ms。</summary>
-    private void AnimatePage(Control page, int direction)
-    {
-        _pageAnim?.Stop();
-        _pageAnim?.Dispose();
-
-        _animPage = page;
-        _animStep = 0;
-        _animDistance = direction * (int)S(26);
-
-        var started = DateTime.UtcNow;
-        const int durationMs = 150;
-
-        _pageAnim = new System.Windows.Forms.Timer { Interval = 10 };
-        _pageAnim.Tick += (_, _) =>
-        {
-            double progress = Math.Min(1.0, (DateTime.UtcNow - started).TotalMilliseconds / durationMs);
-            double eased = 1.0 - Math.Pow(1.0 - progress, 3);   // ease-out cubic
-            int offset = (int)(_animDistance * (1.0 - eased));
-
-            if (_animPage != null && !_animPage.IsDisposed)
-                _animPage.Left = offset;
-
-            if (progress >= 1.0)
-            {
-                if (_animPage != null && !_animPage.IsDisposed) _animPage.Left = 0;
-                _pageAnim?.Stop();
-            }
-        };
-
-        _pageAnim.Start();
+        // 切换即时生效：不做任何动画，彻底避免卡顿与闪框
+        var target = _pages[index];
+        target.Left = 0;
+        target.Visible = true;
+        target.Invalidate(true);
+        target.Update();
     }
 
     private void CycleAccent()
@@ -2022,6 +2864,42 @@ internal sealed class MainForm : Form, IMessageFilter
 
     /// <summary>把主题色应用到界面上所有用色的控件。</summary>
     private void ApplyAccent()
+    {
+        ApplyAccentCore();
+        RefreshLightingForAccent();
+    }
+
+    /// <summary>主题色变化后重建灯光页按钮与选项（否则颜色是旧的）。</summary>
+    private void RefreshLightingForAccent()
+    {
+        try
+        {
+            if (_pages == null || _pageHost == null) return;
+
+            int index = 1;                     // 灯光页
+            bool wasVisible = _pages[index].Visible;
+
+            var old = _pages[index];
+            _pageHost.Controls.Remove(old);
+            old.Dispose();
+
+            var fresh = BuildLightingPage();
+            _pageHost.Controls.Add(fresh);
+            _pages[index] = fresh;
+
+            fresh.Visible = wasVisible;
+            if (_currentPage == index) fresh.Visible = true;
+
+            _lightingSignature = "";
+
+            RefreshLighting();
+            RefreshLampStatesAsync();     // 重建后重新检测灯效设备，否则进不了二级页
+            _pageHost.Invalidate(true);
+        }
+        catch { }
+    }
+
+    private void ApplyAccentCore()
     {
         _accent = Theme.AccentFor(_app.Settings.AccentIndex);
 
@@ -2151,6 +3029,16 @@ internal sealed class MainForm : Form, IMessageFilter
     public bool AllowClose { get; set; }
 
     public void SelectPage(int index) => ShowPage(index);
+
+    /// <summary>预览用：直接展开灯光二级页。</summary>
+    public void PreviewLampDetail()
+    {
+        if (_lampListViewControls.Count > 0)
+        {
+            foreach (var control in _lampListViewControls) control.Visible = false;
+            if (_lampDetailPanel != null) _lampDetailPanel.Visible = true;
+        }
+    }
 
     public void UpdateView()
     {
@@ -2321,6 +3209,7 @@ internal sealed class MainForm : Form, IMessageFilter
         }
         catch { }
     }
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         base.OnFormClosing(e);

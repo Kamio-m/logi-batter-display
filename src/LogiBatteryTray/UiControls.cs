@@ -261,6 +261,23 @@ internal sealed class ScrollHost : Panel
 
     public Panel Content { get; }
 
+    private int _animOffsetX;
+
+    /// <summary>内容区横向动画偏移（像素），布局时叠加。</summary>
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int AnimOffsetX
+    {
+        get => _animOffsetX;
+        set
+        {
+            if (_animOffsetX == value) return;
+            _animOffsetX = value;
+            PerformLayout();
+            Invalidate();
+        }
+    }
+
     /// <summary>内容最大宽度（宽屏下居中，避免卡片被拉太长）。</summary>
     [System.ComponentModel.Browsable(false)]
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
@@ -295,7 +312,7 @@ internal sealed class ScrollHost : Panel
             int maxWidth = Math.Max((int)(420 * DeviceDpi / 96f), (int)(MaxContentWidth * DeviceDpi / 96f));
 
             Content.Width = Math.Min(available, maxWidth);
-            Content.Left = Math.Max(0, (available - Content.Width) / 2);
+            Content.Left = Math.Max(0, (available - Content.Width) / 2) + _animOffsetX;
 
             int bottom = 0;
             foreach (Control child in Content.Controls)
@@ -495,6 +512,23 @@ internal sealed class RoundedDropDown : Control
         });
     }
 
+    private static GraphicsPath RoundedPathLocal(RectangleF rect, float radius)
+    {
+        var path = new GraphicsPath();
+        float diameter = Math.Min(radius * 2f, Math.Min(rect.Width, rect.Height));
+        if (diameter <= 1f) { path.AddRectangle(rect); return path; }
+
+        var arc = new RectangleF(rect.X, rect.Y, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = rect.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = rect.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = rect.X;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
     private void ShowPopup()
     {
         if (_items.Count == 0) return;
@@ -508,7 +542,7 @@ internal sealed class RoundedDropDown : Control
             BackColor = PopupBackground,
         };
 
-        int rowHeight = (int)(Math.Max(22, Height - 6));
+        int rowHeight = (int)(Math.Max(26, Height - 2));
         int height = _items.Count * rowHeight + 8;
 
         var list = new ListBox
@@ -529,12 +563,25 @@ internal sealed class RoundedDropDown : Control
 
         list.DrawItem += (_, e) =>
         {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            using (var back = new SolidBrush(PopupBackground))
+                g.FillRectangle(back, e.Bounds);
+
             bool hot = (e.State & DrawItemState.Selected) != 0;
-            using (var brush = new SolidBrush(hot ? AccentColor : PopupBackground))
-                e.Graphics.FillRectangle(brush, e.Bounds);
+
+            if (hot)
+            {
+                var rect = new RectangleF(e.Bounds.X + 4, e.Bounds.Y + 2, e.Bounds.Width - 8, e.Bounds.Height - 4);
+                using var path = RoundedPathLocal(rect, 6);
+                using var fill = new SolidBrush(AccentColor);
+                g.FillPath(fill, path);
+            }
 
             string item = e.Index >= 0 && e.Index < list.Items.Count ? list.Items[e.Index]?.ToString() : "";
-            TextRenderer.DrawText(e.Graphics, item, Font, new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height),
+            TextRenderer.DrawText(g, item, Font,
+                new Rectangle(e.Bounds.X + 14, e.Bounds.Y, e.Bounds.Width - 22, e.Bounds.Height),
                 hot ? Color.White : TextColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
         };
 
@@ -553,6 +600,8 @@ internal sealed class RoundedDropDown : Control
 
         popup.Controls.Add(list);
         popup.Deactivate += (_, _) => popup.Close();
+
+        popup.Size = new Size(Width, height);
 
         var origin = PointToScreen(new Point(0, Height + 4));
         var screen = Screen.FromControl(this).WorkingArea;
@@ -878,6 +927,377 @@ internal sealed class RoundedTextField : Control
         path.AddArc(arc, 90, 90);
         path.CloseFigure();
         return path;
+    }
+}
+/// <summary>圆形单选按钮（仿 Windows 设置风格）。</summary>
+internal sealed class RoundRadio : Control
+{
+    private bool _checked;
+
+    public RoundRadio()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
+        Size = new Size(22, 22);
+        Cursor = Cursors.Hand;
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color RingColor { get; set; } = Color.Gray;
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color AccentColor { get; set; } = Color.FromArgb(58, 130, 255);
+    public event EventHandler CheckedChanged;
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public bool Checked
+    {
+        get => _checked;
+        set
+        {
+            if (_checked == value) return;
+            _checked = value;
+            Invalidate();
+            CheckedChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        float size = Math.Min(Width, Height) - 3;
+        var rect = new RectangleF((Width - size) / 2f, (Height - size) / 2f, size, size);
+
+        using var pen = new Pen(_checked ? AccentColor : RingColor, 1.6f);
+        g.DrawEllipse(pen, rect);
+
+        if (_checked)
+        {
+            float dot = size * 0.45f;
+            using var brush = new SolidBrush(AccentColor);
+            g.FillEllipse(brush, (Width - dot) / 2f, (Height - dot) / 2f, dot, dot);
+        }
+    }
+
+    protected override void OnClick(EventArgs e)
+    {
+        base.OnClick(e);
+        if (!Checked) Checked = true;   // 已选中的单选不再取消
+    }
+}
+
+/// <summary>方形复选框（仿 Windows 设置风格）。</summary>
+internal sealed class SquareCheck : Control
+{
+    private bool _checked;
+
+    public SquareCheck()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
+        Size = new Size(20, 20);
+        Cursor = Cursors.Hand;
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color RingColor { get; set; } = Color.Gray;
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color AccentColor { get; set; } = Color.FromArgb(58, 130, 255);
+    public event EventHandler CheckedChanged;
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public bool Checked
+    {
+        get => _checked;
+        set { if (_checked == value) return; _checked = value; Invalidate(); CheckedChanged?.Invoke(this, EventArgs.Empty); }
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        var rect = new RectangleF(1.5f, 1.5f, Width - 4f, Height - 4f);
+        using var pen = new Pen(_checked ? AccentColor : RingColor, 1.6f);
+        g.DrawRectangle(pen, rect.X, rect.Y, rect.Width, rect.Height);
+
+        if (_checked)
+        {
+            using var brush = new SolidBrush(AccentColor);
+            g.FillRectangle(brush, rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
+        }
+    }
+
+    protected override void OnClick(EventArgs e)
+    {
+        base.OnClick(e);
+        Checked = !Checked;
+    }
+}
+
+/// <summary>简易滑块（0-100，带刻度点）。</summary>
+internal sealed class SliderControl : Control
+{
+    private int _value = 60;
+
+    public SliderControl()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
+        Size = new Size(260, 34);
+        Cursor = Cursors.Hand;
+    }
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color TrackColor { get; set; } = Color.FromArgb(70, 70, 78);
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color FillColor { get; set; } = Color.FromArgb(230, 190, 60);
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color ThumbColor { get; set; } = Color.White;
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int Steps { get; set; } = 5;
+    public event EventHandler ValueChanged;
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int Value
+    {
+        get => _value;
+        set
+        {
+            int clamped = Math.Clamp(value, 0, 100);
+            if (clamped == _value) return;
+            _value = clamped;
+            Invalidate();
+            ValueChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        float left = 8;
+        float right = Width - 8;
+        float y = Height - 10;
+
+        // 刻度点
+        for (int i = 0; i < Steps; i++)
+        {
+            float x = left + (right - left) * i / (Steps - 1f);
+            using var dot = new SolidBrush(TrackColor);
+            g.FillEllipse(dot, x - 2, y - 14, 4, 4);
+        }
+
+        using (var track = new Pen(TrackColor, 3f))
+            g.DrawLine(track, left, y, right, y);
+
+        float thumbX = left + (right - left) * _value / 100f;
+
+        using (var fill = new Pen(FillColor, 3f))
+            g.DrawLine(fill, left, y, thumbX, y);
+
+        using (var thumb = new SolidBrush(ThumbColor))
+            g.FillRectangle(thumb, thumbX - 3, y - 8, 6, 12);
+    }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        SetFromX(e.X);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (e.Button == MouseButtons.Left) SetFromX(e.X);
+    }
+
+    private void SetFromX(int x)
+    {
+        float left = 8;
+        float right = Width - 8;
+        double ratio = Math.Clamp((x - left) / (right - left), 0, 1);
+
+        // 吸附到 Steps 档
+        if (Steps > 1)
+        {
+            double step = 1.0 / (Steps - 1);
+            ratio = Math.Round(ratio / step) * step;
+        }
+
+        Value = (int)Math.Round(ratio * 100);
+    }
+}
+/// <summary>HSV 色环：角度=色相，半径=饱和度，点击/拖动取色。</summary>
+internal sealed class ColorWheel : Control
+{
+    private Bitmap _cache;
+    private int _cacheSize;
+    private Color _selected = Color.FromArgb(58, 130, 255);
+
+    public ColorWheel()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
+        Size = new Size(160, 160);
+        Cursor = Cursors.Hand;
+    }
+
+    public event EventHandler SelectedColorChanged;
+
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Color SelectedColor
+    {
+        get => _selected;
+        set { _selected = value; Invalidate(); }
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        int size = Math.Min(Width, Height);
+        if (_cache == null || _cacheSize != size)
+        {
+            _cache?.Dispose();
+            _cache = BuildWheel(size);
+            _cacheSize = size;
+        }
+
+        int offsetX = (Width - size) / 2;
+        int offsetY = (Height - size) / 2;
+        g.DrawImage(_cache, offsetX, offsetY, size, size);
+
+        // 当前颜色标记
+        double radius = size / 2.0 - 1;
+        double hue = Hue(_selected) * Math.PI / 180.0;
+        double sat = _selected.GetSaturation();
+        float cx = offsetX + size / 2f + (float)(Math.Cos(hue) * radius * sat);
+        float cy = offsetY + size / 2f + (float)(Math.Sin(hue) * radius * sat);
+
+        using var pen = new Pen(Color.White, 2f);
+        g.DrawEllipse(pen, cx - 6, cy - 6, 12, 12);
+        using var darkPen = new Pen(Color.Black, 1f);
+        g.DrawEllipse(darkPen, cx - 7, cy - 7, 14, 14);
+    }
+
+    private static Bitmap BuildWheel(int size)
+    {
+        var bmp = new Bitmap(size, size);
+        int half = size / 2;
+        double radius = half - 1;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                double dx = x - half;
+                double dy = y - half;
+                double dist = Math.Sqrt(dx * dx + dy * dy);
+
+                if (dist > radius)
+                {
+                    bmp.SetPixel(x, y, Color.Transparent);
+                    continue;
+                }
+
+                double hue = Math.Atan2(dy, dx) * 180.0 / Math.PI;
+                double sat = Math.Min(1.0, dist / radius);
+                bmp.SetPixel(x, y, FromHsv(hue, sat, 1.0));
+            }
+        }
+
+        return bmp;
+    }
+
+    private void Pick(Point point)
+    {
+        int size = Math.Min(Width, Height);
+        int offsetX = (Width - size) / 2;
+        int offsetY = (Height - size) / 2;
+        double radius = size / 2.0;
+
+        double dx = point.X - (offsetX + size / 2.0);
+        double dy = point.Y - (offsetY + size / 2.0);
+        double dist = Math.Sqrt(dx * dx + dy * dy);
+
+        double hue = Math.Atan2(dy, dx) * 180.0 / Math.PI;
+        double sat = Math.Min(1.0, dist / radius);
+
+        _selected = FromHsv(hue, sat, 1.0);
+        Invalidate();
+        SelectedColorChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        Pick(e.Location);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (e.Button == MouseButtons.Left) Pick(e.Location);
+    }
+
+    private static double Hue(Color color)
+    {
+        double r = color.R / 255.0, g = color.G / 255.0, b = color.B / 255.0;
+        double max = Math.Max(r, Math.Max(g, b));
+        double min = Math.Min(r, Math.Min(g, b));
+        double delta = max - min;
+
+        if (delta == 0) return 0;
+
+        double hue = max == r ? ((g - b) / delta) % 6
+                   : max == g ? ((b - r) / delta) + 2
+                   : ((r - g) / delta) + 4;
+
+        hue *= 60;
+        return hue < 0 ? hue + 360 : hue;
+    }
+
+    private static Color FromHsv(double h, double s, double v)
+    {
+        h = ((h % 360) + 360) % 360;
+        double c = v * s;
+        double x = c * (1 - Math.Abs((h / 60) % 2 - 1));
+        double m = v - c;
+
+        (double r, double g, double b) = h switch
+        {
+            < 60 => (c, x, 0.0),
+            < 120 => (x, c, 0.0),
+            < 180 => (0.0, c, x),
+            < 240 => (0.0, x, c),
+            < 300 => (x, 0.0, c),
+            _ => (c, 0.0, x),
+        };
+
+        return Color.FromArgb(
+            (int)Math.Round((r + m) * 255),
+            (int)Math.Round((g + m) * 255),
+            (int)Math.Round((b + m) * 255));
     }
 }
 /// <summary>细长的自绘滚动条。</summary>

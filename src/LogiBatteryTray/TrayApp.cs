@@ -85,8 +85,19 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
     public TrayApp(bool showWindow = false)
     {
         _settings = AppSettings.Load();
+
+        LampEngine.BatteryPercentProvider = () =>
+            DisplayDevice?.Battery?.Percent ?? SelectedManualDevice?.RemainingPercent(DateTime.UtcNow);
         if (!string.IsNullOrEmpty(_settings.LoadError)) Log.Write("读取设置失败: " + _settings.LoadError);
 
+        // 预热灯效控制权缓存（后台线程，避免首次打开灯光页卡顿）
+        LampArrayControl.WarmUp();
+
+        // 恢复上次灯效
+        RestoreLampEffect();
+
+        // 灯效变化后自动保存
+        LampEngine.Changed += (_, _) => SaveLampEffect();
         _dispatcher = new Control();
         _dispatcher.CreateControl();
 
@@ -143,6 +154,15 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _tray.MouseDoubleClick += (_, _) => ShowDetails();
 
         // 1.5 秒后向系统确认图标是否真的进了通知区域；失败重试一次，仍失败则切换悬浮窗
+        var promoteTimer = new System.Windows.Forms.Timer { Interval = 2000 };
+        promoteTimer.Tick += (_, _) =>
+        {
+            promoteTimer.Stop();
+            promoteTimer.Dispose();
+            PromoteTrayIcon();
+        };
+        promoteTimer.Start();
+
         var trayCheck = new System.Windows.Forms.Timer { Interval = 1500 };
         int trayCheckAttempts = 0;
         trayCheck.Tick += (_, _) =>
@@ -569,6 +589,46 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _mainForm.UpdateView();
     }
 
+    /// <summary>读取设置并恢复上次的灯效。</summary>
+    private void RestoreLampEffect()
+    {
+        try
+        {
+            int mode = _settings.LampEffectMode;
+            if (mode <= 0) return;                       // 0 = 上次是关闭，不恢复
+
+            var color = ColorTranslator.FromHtml(string.IsNullOrEmpty(_settings.LampColor) ? "#3A82FF" : _settings.LampColor);
+            var lampMode = (LampMode)mode;
+
+            LampEngine.Configure(lampMode, color,
+                Math.Clamp(_settings.LampBrightness, 1, 100),
+                Math.Clamp(_settings.LampSpeed, 0.4, 2.4));
+
+            Log.Write($"恢复灯效: {lampMode} #{color.R:X2}{color.G:X2}{color.B:X2}");
+        }
+        catch (Exception ex)
+        {
+            Log.Write("恢复灯效失败: " + ex.Message);
+        }
+    }
+
+    /// <summary>把当前灯效参数写入设置。</summary>
+    private void SaveLampEffect()
+    {
+        try
+        {
+            _settings.LampEffectMode = (int)LampEngine.Mode;
+            var color = LampEngine.BaseColor;
+            _settings.LampColor = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+            _settings.LampBrightness = LampEngine.Brightness;
+            _settings.LampSpeed = LampEngine.Speed;
+            _settings.Save();
+        }
+        catch (Exception ex)
+        {
+            Log.Write("保存灯效失败: " + ex.Message);
+        }
+    }
     public AppSettings Settings => _settings;
     public BatteryService Service => _service;
 
@@ -624,6 +684,43 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         _widget.DockToTaskbar();
     }
 
+    /// <summary>
+    /// 把本程序在通知区域的图标设为「在任务栏显示」（不折叠进 ^ 面板）。
+    /// Win11 22H2+ 用 HKCU\Control Panel\NotifyIconSettings\*!IsPromoted 控制。
+    /// </summary>
+    private void PromoteTrayIcon()
+    {
+        try
+        {
+            string exe = Environment.ProcessPath ?? Application.ExecutablePath;
+            string name = System.IO.Path.GetFileNameWithoutExtension(exe);
+
+            using var root = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Control Panel\NotifyIconSettings", true);
+            if (root == null) return;
+
+            bool found = false;
+            foreach (string keyName in root.GetSubKeyNames())
+            {
+                using var sub = root.OpenSubKey(keyName, true);
+                if (sub == null) continue;
+
+                string path = sub.GetValue("ExecutablePath") as string;
+                if (string.IsNullOrEmpty(path)) continue;
+                if (!path.Contains(name, StringComparison.OrdinalIgnoreCase)) continue;
+
+                sub.SetValue("IsPromoted", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                found = true;
+                Log.Write("通知区域图标已设为固定显示: " + path);
+            }
+
+            if (!found) Log.Write("未找到通知区域条目（图标可能还没生成，稍后重试）");
+        }
+        catch (Exception ex)
+        {
+            Log.Write("设置通知区域图标失败: " + ex.Message);
+        }
+    }
     private void OnTrayMouseClick(object sender, MouseEventArgs e)
     {
         if (e.Button == MouseButtons.Left) ShowDetails();
