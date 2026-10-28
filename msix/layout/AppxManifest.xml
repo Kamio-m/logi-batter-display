@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+    xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+    xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+    xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+    xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+    xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+    IgnorableNamespaces="uap uap3 uap5 rescap">
+
+  <Identity Name="LogiBatteryTray" Publisher="CN=LogiBatteryTray" Version="1.2.7.1" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>LogiBatteryTray</DisplayName>
+    <PublisherDisplayName>LogiBatteryTray</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Resources>
+    <Resource Language="zh-CN" />
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+  <Applications>
+    <Application Id="LogiBatteryTray" Executable="LogiBatteryTray.exe" EntryPoint="Windows.FullTrustApplication">
+      <Extensions>
+        <uap5:Extension Category="windows.startupTask" Executable="LogiBatteryTray.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap5:StartupTask TaskId="LogiBatteryTrayStartup" Enabled="true" DisplayName="LogiBatteryTray" />
+        </uap5:Extension>
+        <uap3:Extension Category="windows.appExtension">
+          <uap3:AppExtension Name="com.microsoft.windows.lighting" Id="ambientLighting" DisplayName="Ambient Lighting" PublicFolder="Public" />
+        </uap3:Extension>
+      </Extensions>
+      <uap:VisualElements
+          DisplayName="LogiBatteryTray"
+          Description="缃楁妧鏃犵嚎榧犳爣鐢甸噺鏄剧ず"
+          BackgroundColor="transparent"
+          Square150x150Logo="Assets\Square150x150Logo.png"
+          Square44x44Logo="Assets\Square44x44Logo.png" />
+    </Application>
+  </Applications>
+
+</Package>

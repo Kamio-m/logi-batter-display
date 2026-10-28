@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>LogiBatteryTray-Setup</AssemblyName>
+    <RootNamespace>LogiBatteryTray.Setup</RootNamespace>
+    <ApplicationIcon>..\LogiBatteryTray\Assets\app.ico</ApplicationIcon>
+    <Version>1.2.6</Version>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\msix\out\LogiBatteryTray.msix" LogicalName="app.msix" />
+    <EmbeddedResource Include="..\..\msix\out\app.cer" LogicalName="app.cer" />
+  </ItemGroup>
+</Project>

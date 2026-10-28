@@ -1,3 +1,4 @@
+using System.IO;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Runtime.InteropServices;
@@ -8,6 +9,20 @@ namespace LogiBatteryTray;
 internal static class Program
 {
     [STAThread]
+    /// <summary>是否由 MSIX 启动任务（开机自启）拉起。</summary>
+    private static bool IsStartupTaskLaunch()
+    {
+        try
+        {
+            var activation = Windows.ApplicationModel.AppInstance.GetActivatedEventArgs();
+            return activation != null &&
+                   activation.Kind == Windows.ApplicationModel.Activation.ActivationKind.StartupTask;
+        }
+        catch
+        {
+            return false;
+        }
+    }
     private static int Main(string[] args)
     {
         // 命令行/诊断模式
@@ -53,6 +68,13 @@ internal static class Program
 
         Application.ThreadException += (_, e) =>
         {
+            // 拖放注册失败不影响功能，静默忽略，不弹框
+            if (e.Exception?.Message?.Contains("DragDrop", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                Log.Write("拖放注册失败（已忽略）: " + e.Exception.Message);
+                return;
+            }
+
             Log.Write("界面异常: " + e.Exception);
             MessageBox.Show("程序遇到错误：" + e.Exception.Message, "罗技鼠标电量",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -63,7 +85,9 @@ internal static class Program
 
         try
         {
-            Application.Run(new TrayApp(!Environment.GetCommandLineArgs().Contains("--silent")));
+            // 开机自启（startupTask）或 --silent → 只驻留托盘，不弹窗口
+        bool silent = Environment.GetCommandLineArgs().Contains("--silent") || IsStartupTaskLaunch();
+        Application.Run(new TrayApp(!silent));
         }
         catch (Exception ex)
         {
@@ -132,6 +156,13 @@ internal static class Cli
         case "--rawsniff": return HidScan.RunRaw(args);
         case "--lamp": return HidScan.RunLamp(args);
         case "--lampset": return HidScan.RunLampSet(args);
+        case "--lampstate":
+                {
+                    var st = LampArrayControl.State();
+                    Console.WriteLine(st.Count == 0 ? "无 LampArray 设备" : string.Join(Environment.NewLine, st));
+                    return 0;
+                }
+
         case "--lamplist":
                 {
                     var found = LampArrayControl.Probe();
