@@ -22,3 +22,6 @@ publish.cmd
 .idea/
 *.user
 RELEASE_NOTES.md
+
+*.exe
+LogiBatteryTray-Setup-*.exe
