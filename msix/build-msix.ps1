@@ -5,7 +5,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Split-Path -Parent $root
 Set-Location $repo
 
-$version = '1.2.8.6'
+$version = '1.4.0.0'
 $publisher = 'CN=LogiBatteryTray'
 $layout = Join-Path $root 'layout'
 $pkgDir = Join-Path $root 'out'
