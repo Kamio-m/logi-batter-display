@@ -3043,8 +3043,13 @@ internal sealed class MainForm : Form, IMessageFilter
     public void UpdateView()
     {
         bool receiverConnected = _app.Service.ReceiverConnected;
-        _devicePage.Content.Visible = receiverConnected;
-        _emptyState.Visible = !receiverConnected;
+
+        // 没有罗技接收器时，只要还有第三方设备（ATK 等），设备页照样显示
+        bool hasAnyDevice = _app.Service.Devices.Count > 0;
+        bool showList = receiverConnected || hasAnyDevice;
+
+        _devicePage.Content.Visible = showList;
+        _emptyState.Visible = !showList;
 
         // 样式或主题色变了就整组重建，避免两类卡片不同步
         if (IconFactory.Shape != _lastShape || _lastAccent != _app.Settings.AccentIndex)

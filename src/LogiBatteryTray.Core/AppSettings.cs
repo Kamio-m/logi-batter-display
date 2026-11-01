@@ -66,6 +66,9 @@ internal sealed class AppSettings
 
     public double LampSpeed { get; set; } = 1.0;
 
+    /// <summary>ATK 无线鼠标上次读到的电量（-1 = 从未读到）。</summary>
+    public int AtkLastPercent { get; set; } = -1;
+
     /// <summary>图标风格（已固定为系统风格，保留字段兼容旧配置）。</summary>
     public int IconStyle { get; set; }
 

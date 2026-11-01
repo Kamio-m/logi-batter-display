@@ -93,6 +93,9 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         // 预热灯效控制权缓存（后台线程，避免首次打开灯光页卡顿）
         LampArrayControl.WarmUp();
 
+        // 用上次保存的电量预置 ATK 设备（拔掉接收器也保留卡片）
+        try { _service.SeedAtkDevice(_settings.AtkLastPercent); } catch { }
+
         // 恢复上次灯效
         RestoreLampEffect();
 
@@ -786,6 +789,16 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         Task.Run(() =>
         {
             bool ok = _service.Refresh();
+            try { _service.RefreshAtkDevice(); } catch { }
+
+            if (_service.AtkPercent is int atkNow && atkNow != _settings.AtkLastPercent)
+            {
+                _settings.AtkLastPercent = atkNow;
+                _settings.Save();
+            }
+
+            // 罗技设备可能一台都没有，但 ATK 等第三方设备仍在线 → 视为成功
+            if (!ok) ok = _service.Devices.Any(d => d.Online);
             try
             {
                 _dispatcher.BeginInvoke(new Action(() =>
@@ -925,6 +938,16 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
 
         var device = DisplayDevice;
 
+        // 明确选中了第三方设备 → 始终显示它，不随罗技设备在不在而切换
+        bool atkSelected = (_settings.SelectedDeviceKey ?? "").StartsWith("atk:", StringComparison.Ordinal);
+
+        var thirdParty = _service.Devices.FirstOrDefault(d => d.Path.StartsWith("atk:", StringComparison.Ordinal));
+
+        if (atkSelected && thirdParty != null)
+            device = thirdParty;
+        else if (device == null && thirdParty != null)
+            device = thirdParty;
+
         // 没有可用硬件设备时，用「估算设备」顶上
         if (device == null)
         {
@@ -950,7 +973,8 @@ internal sealed class TrayApp : ApplicationContext, IMainFormHost
         }
 
         var battery = device?.Battery;
-        bool online = device != null && device.Online && battery != null;
+        bool online = device != null && battery != null &&
+                      (device.Online || device.Path.StartsWith("atk:", StringComparison.Ordinal));
 
         string percentText = battery?.Percent is int percent ? $"{percent}%" : "--";
         string status = battery?.StatusText ?? "";

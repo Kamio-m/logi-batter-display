@@ -25,6 +25,10 @@ public sealed class LogiDevice
 public sealed class BatteryService
 {
     private readonly List<LogiDevice> _devices = new();
+
+    /// <summary>只清掉罗技设备，保留 ATK 等第三方设备条目（它们由各自的读取器维护）。</summary>
+    private void ClearLogitechDevices() => _devices.RemoveAll(d => !d.Path.StartsWith("atk:", StringComparison.Ordinal));
+
     private int _failures;
 
     public IReadOnlyList<LogiDevice> Devices => _devices;
@@ -51,18 +55,24 @@ public sealed class BatteryService
     {
         try
         {
-            if (_devices.Count == 0) Discover();
+            // 第三方设备（atk:）由各自的读取器维护，不参与罗技 HID++ 轮询
+            var logiDevices = _devices.Where(d => !d.Path.StartsWith("atk:", StringComparison.Ordinal)).ToList();
 
-            if (_devices.Count == 0)
+            if (logiDevices.Count == 0) Discover();
+            logiDevices = _devices.Where(d => !d.Path.StartsWith("atk:", StringComparison.Ordinal)).ToList();
+
+            if (logiDevices.Count == 0)
             {
                 Problem = ReceiverConnected ? "未检测到鼠标，移动一下鼠标即可连接" : "请连接设备";
-                return false;
+
+                // 只有第三方设备在线时，仍算刷新成功（否则界面会判定成"无设备"）
+                return _devices.Count > 0;
             }
 
             bool anyOk = false;
             bool anyInterfaceAlive = false;
 
-            foreach (var device in _devices)
+            foreach (var device in logiDevices)
             {
                 var result = ReadInto(device);
                 if (result == ReadResult.Ok) anyOk = true;
@@ -86,10 +96,10 @@ public sealed class BatteryService
                 _lastRediscover = DateTime.Now;
                 var previous = _devices.ToList();
 
-                _devices.Clear();
+                ClearLogitechDevices();
                 Discover();
 
-                foreach (var device in _devices)
+                foreach (var device in _devices.Where(d => !d.Path.StartsWith("atk:", StringComparison.Ordinal)))
                 {
                     if (ReadInto(device) == ReadResult.Ok) anyOk = true;
                 }
@@ -210,6 +220,104 @@ public sealed class BatteryService
         InterfaceGone,
     }
 
+    private DateTime _atkLastAttempt = DateTime.MinValue;
+    private DateTime _atkLastLog = DateTime.MinValue;
+    private int? _atkLastPercent;
+    private int _atkZeroStreak;
+    private int _atkFailStreak;
+
+    /// <summary>ATK 设备当前电量（null = 还没读到过）。</summary>
+    public int? AtkPercent => _atkLastPercent;
+
+    /// <summary>启动时用上次保存的电量预置 ATK 设备，接收器不在也保留卡片。</summary>
+    public void SeedAtkDevice(int percent)
+    {
+        if (percent < 0) return;
+        if (!AtkMouse.IsPresent()) return;
+
+        _atkLastPercent = percent;
+        if (_devices.Any(d => d.Path.StartsWith("atk:", StringComparison.Ordinal))) return;
+
+        _devices.Add(new LogiDevice
+        {
+            Name = "ATK 无线鼠标",
+            Path = "atk:",
+            Online = AtkMouse.IsPresent(),
+            UpdatedAt = DateTime.Now,
+            Problem = null,
+            Battery = new BatteryReading { Percent = percent, Source = "ATK 私有协议" },
+        });
+    }
+
+    /// <summary>
+    /// 读取 ATK / VXE / VGN 2.4G 无线鼠标电量（私有协议）。
+    /// 读取较慢，最多每 3 秒一次；失败不清空设备，沿用上次电量。
+    /// </summary>
+    public void RefreshAtkDevice()
+    {
+        bool present = AtkMouse.IsPresent();
+
+        bool throttled = (DateTime.UtcNow - _atkLastAttempt).TotalSeconds < 3;
+        if (!throttled)
+        {
+            _atkLastAttempt = DateTime.UtcNow;
+
+            bool ok = AtkMouse.TryRead(out int percent, out string message);
+
+            if (ok)
+            {
+                _atkFailStreak = 0;
+
+                // 0% 很可能是无效回复（休眠/半包），连续 3 次才采信
+                if (percent == 0 && _atkLastPercent is int last && last > 5)
+                {
+                    if (++_atkZeroStreak < 3) ok = false;
+                }
+                else
+                {
+                    _atkZeroStreak = 0;
+                }
+            }
+            else if (++_atkFailStreak == 1 || _atkFailStreak % 20 == 0)
+            {
+                Log.Write("ATK 读取失败: " + message);
+            }
+
+            if (ok) _atkLastPercent = percent;
+        }
+
+        // 接收器不在 → 直接移除卡片（不显示休眠/离线）
+        if (!present)
+        {
+            _devices.RemoveAll(d => d.Path.StartsWith("atk:", StringComparison.Ordinal));
+            return;
+        }
+
+        var existing = _devices.FirstOrDefault(d => d.Path == "atk:");
+        if (existing == null)
+        {
+            existing = new LogiDevice
+            {
+                Name = "ATK 无线鼠标",
+                Path = "atk:",
+                Online = true,
+                ProtocolVersion = 0,
+            };
+
+            _devices.Add(existing);
+        }
+
+        // 与罗技设备一致：接收器拔掉 → 卡片保留，状态显示"休眠"
+        existing.Online = present;
+        existing.Problem = null;
+        existing.PoweredOff = false;
+        existing.UpdatedAt = DateTime.Now;
+        existing.Battery = new BatteryReading
+        {
+            Percent = _atkLastPercent,
+            Source = "ATK 私有协议",
+        };
+    }
     /// <summary>仅供预览：塞一个假设备。</summary>
     internal void AddPreviewDevice(string name, BatteryReading battery)
     {
@@ -250,7 +358,7 @@ public sealed class BatteryService
                 Problem = null;
                 LastUpdated = DateTime.Now;
 
-                _devices.Clear();
+                ClearLogitechDevices();
                 _devices.Add(new LogiDevice
                 {
                     Name = name,
@@ -278,7 +386,7 @@ public sealed class BatteryService
     /// <summary>接收器插拔后清空状态，强制下次刷新重新发现。</summary>
     public void Reset()
     {
-        _devices.Clear();
+        ClearLogitechDevices();
         ReceiverConnected = false;
         Problem = null;
     }
@@ -394,7 +502,7 @@ public sealed class BatteryService
 
         ReceiverConnected = candidates.Count > 0;
 
-        _devices.Clear();
+        ClearLogitechDevices();
         _devices.AddRange(found);
         if (_devices.Count > 0)
         {

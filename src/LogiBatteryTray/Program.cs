@@ -149,6 +149,13 @@ internal static class Cli
     {
         switch (args[0])
         {
+            case "--atk":
+                {
+                    bool ok = AtkMouse.TryRead(out int atkPercent, out string atkMsg);
+                    Console.WriteLine($"{(ok ? "成功" : "失败")}: {atkMsg} (raw={atkPercent})");
+                    return ok ? 0 : 1;
+                }
+
             case "--scanhid": return HidScan.Run(args);
         case "--sniffhid": return HidScan.RunSniff(args);
         case "--hidwrite": return HidScan.RunWrite(args);
